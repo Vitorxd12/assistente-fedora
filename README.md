@@ -19,11 +19,32 @@ O script pede a senha do `sudo` quando precisa.
 
 | Comando | O que faz |
 |---|---|
-| `./install.sh` | roda tudo (pergunta antes de remover pacotes) |
-| `./install.sh --yes` | roda tudo sem perguntar |
+| `./install.sh` | mostra o que vai mudar e pergunta a cada etapa |
+| `./install.sh --dry-run` | só mostra o que mudaria nesta máquina, sem alterar nada |
+| `./install.sh --yes` | aplica tudo sem perguntar (o plano continua aparecendo) |
 | `./install.sh --list` | lista as etapas |
 | `./install.sh --only kitty,zsh` | roda só essas etapas |
 | `./install.sh --skip flatpak` | roda tudo menos essas |
+
+### Como é cada etapa
+
+Antes de mexer em qualquer coisa, o script calcula o que realmente vai mudar
+**nesta máquina** e pergunta:
+
+```
+╭─ gnome — tema escuro, atalhos, teclado/mouse, privacidade, dock
+│  ~ tema escuro: 'default' → 'prefer-dark'
+│  ~ cor de destaque: 'blue' → 'red'
+│  ~ apps fixados na dock (dock vazia): ['org.mozilla.firefox.desktop', …] → @as []
+│  + atalho no Nautilus: repos
+╰─ Aplicar 4 mudança(s)? [S]im  [n]ão  [d]iferenças  [q]sair:
+```
+
+- `+` novo · `~` alterado (valor atual → novo) · `-` removido · `·` aviso
+- **d** mostra o antes/depois de cada arquivo que será substituído
+- etapas que já estão aplicadas são puladas sem perguntar
+- arquivos substituídos ganham backup (`arquivo.bak-DATA`)
+- no fim aparece um resumo: aplicadas, já estavam ok, puladas, com falha
 
 No fim, **saia da sessão e entre de novo** — shell padrão, cursor e extensões
 só valem a partir do próximo login.
@@ -56,6 +77,7 @@ Fluxo recomendado numa instalação nova:
 | `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto) + extensão local que tira o botão "Mostrar aplicativos" |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
+| `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
 | `auth` | desativa login por digital e smartcard |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
 
@@ -98,6 +120,7 @@ config/zsh/                   .zshrc e tema lambda-vitor
 config/kitty/kitty.conf
 config/firefox/              user.js e userChrome.css
 config/vlc-mimeapps.list      formatos abertos pelo VLC
+config/vscode/                settings.json e lista de extensões
 config/extensions/            configurações das extensões + extensão local
 ```
 
