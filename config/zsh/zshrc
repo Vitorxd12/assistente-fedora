@@ -58,10 +58,22 @@ setopt hist_ignore_all_dups hist_reduce_blanks
 
 # ls → eza (ícones, cores, git)
 if command -v eza >/dev/null; then
-  alias ls='eza --icons=auto --group-directories-first'
-  alias ll='eza -lah --icons=auto --group-directories-first --git'
-  alias la='eza -a --icons=auto --group-directories-first'
-  alias lt='eza --tree --level=2 --icons=auto --group-directories-first'
+  # o eza lê nomes de arquivo da entrada quando ela não é um terminal (ex.: dentro
+  # de "while read" ou com < arquivo) e aí lista a coisa errada; nesse caso,
+  # sem pasta informada, passa "." explicitamente
+  _lv_eza() {
+    local a
+    if [[ ! -t 0 ]]; then
+      for a in "$@"; do [[ $a != -* ]] && { command eza "$@"; return; }; done
+      command eza "$@" .
+    else
+      command eza "$@"
+    fi
+  }
+  alias ls='_lv_eza --icons=auto --group-directories-first'
+  alias ll='_lv_eza -lah --icons=auto --group-directories-first --git'
+  alias la='_lv_eza -a --icons=auto --group-directories-first'
+  alias lt='_lv_eza --tree --level=2 --icons=auto --group-directories-first'
 else
   alias ls='ls --color=auto'
   alias ll='ls -lah --color=auto'
