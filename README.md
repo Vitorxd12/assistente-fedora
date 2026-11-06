@@ -47,7 +47,7 @@ Fluxo recomendado numa instalação nova:
 |---|---|
 | `check` | verifica Fedora, GNOME, usuário e sudo |
 | `packages` | instala kitty, zsh, git, fontes, pt-BR; remove Boxes, Mapas, Clima, Contatos, Agenda, Relógios, LibreOffice, Orca, Ajuda, controle parental, teclados asiáticos… |
-| `flatpak` | libera o Flathub completo; instala VLC, Extension Manager, VS Code; VLC como player padrão |
+| `flatpak` | libera o Flathub completo; instala VLC, Extension Manager, VS Code e RustDesk; Remote Desktop Manager pelo repositório oficial da Devolutions (o do Flathub foi descontinuado); VLC como player padrão |
 | `fonts` | JetBrainsMono Nerd Font |
 | `cursor` | Bibata Modern Ice (branco) para GNOME, GTK, XWayland e Flatpak — gera a versão SVG (`cursors_scalable/`) que o GNOME 51 exige |
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
