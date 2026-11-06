@@ -29,7 +29,7 @@ declare -A DESC=(
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; zsh como shell padrão"
-  [tools]="ferramentas modernas: eza, dust, delta, btop, procs, sd, bottom, tldr, bandwhich, grex, tokei, hyperfine"
+  [tools]="ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git com delta"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
   [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor + configs"
@@ -56,10 +56,9 @@ PKGS_INSTALL=(
   libgtop2                        # usado pelo Astra Monitor
 )
 # Ferramentas modernas de terminal. No .zshrc: ls→eza, du→dust, diff→delta,
-# top→btop, ps→procs (com opções clássicas roda o comando original).
+# top→btop (com opções clássicas roda o comando original).
 # cd/z, grep e find continuam os originais de propósito.
-TOOLS_DNF=(eza du-dust git-delta btop tokei hyperfine cargo)
-TOOLS_CARGO=(procs sd bottom tealdeer bandwhich grex)   # não estão nos repositórios do Fedora
+TOOLS_DNF=(eza du-dust git-delta btop tokei hyperfine)
 PKGS_REMOVE=(
   gnome-boxes gnome-connections gnome-maps gnome-weather gnome-contacts
   gnome-tour gnome-calendar gnome-clocks mediawriter rygel decibels
@@ -269,19 +268,6 @@ step_zsh() {
 step_tools() {
   info "instalando pelo dnf: ${TOOLS_DNF[*]}"
   sudo dnf install -y "${TOOLS_DNF[@]}" 2>&1 | tee -a "$LOG" | tail -3
-  export PATH="$HOME/.cargo/bin:$PATH"
-  local t missing=()
-  for t in "${TOOLS_CARGO[@]}"; do
-    case $t in bottom) command -v btm >/dev/null || missing+=("$t") ;;
-               tealdeer) command -v tldr >/dev/null || missing+=("$t") ;;
-               *) command -v "$t" >/dev/null || missing+=("$t") ;; esac
-  done
-  if (( ${#missing[@]} )); then
-    info "compilando pelo cargo (pode levar ~10 min): ${missing[*]}"
-    cargo install --locked "${missing[@]}" 2>&1 | tee -a "$LOG" | grep -E '^\s+(Installed|Replaced)|error' || true
-  else
-    ok "ferramentas do cargo já instaladas"
-  fi
   # git usa o delta para diff/log/show
   if command -v delta >/dev/null; then
     git config --global core.pager delta
@@ -290,13 +276,6 @@ step_tools() {
     git config --global delta.line-numbers true
     git config --global merge.conflictStyle zdiff3
     ok "git configurado com o delta"
-  fi
-  # base de exemplos do tldr
-  command -v tldr >/dev/null && tldr --update >/dev/null 2>&1 && ok "base do tldr baixada"
-  # bandwhich precisa ler a rede: dá a permissão uma vez para rodar sem sudo
-  if [[ -x $HOME/.cargo/bin/bandwhich ]]; then
-    sudo setcap cap_sys_ptrace,cap_dac_read_search,cap_net_raw,cap_net_admin+ep "$HOME/.cargo/bin/bandwhich" \
-      && ok "bandwhich liberado para rodar sem sudo"
   fi
 }
 

@@ -14,3 +14,17 @@
 /* a barra de endereço agora fica no topo da janela: deixa arrastar a janela
    pelos espaços vazios dela (botões e campo de busca continuam clicáveis) */
 #nav-bar { -moz-window-dragging: drag; }
+
+/* ── Botões da janela (minimizar, maximizar, fechar) na barra de cima ──
+   Eles vivem dentro da barra de abas; aqui são posicionados por cima do canto
+   direito da barra de endereço, que reserva esse espaço. */
+#navigator-toolbox { position: relative !important; }
+#TabsToolbar .titlebar-buttonbox-container {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  height: 40px !important;          /* altura da barra de endereço */
+  align-items: center !important;
+  z-index: 10 !important;
+}
+#nav-bar { padding-inline-end: 112px !important; }   /* espaço para os 3 botões */
