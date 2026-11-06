@@ -81,7 +81,7 @@ Fluxo recomendado numa instalação nova:
 - Comandos modernos com os nomes de sempre: `ls` → eza, `cat` → bat,
   `du` → dust, `diff` → delta, `top` → btop, `ps` → procs. Com as opções
   clássicas (`du -sh`, `diff -u`, `ps aux`) roda o comando original; para
-  forçar o original, use `\\comando` (ex.: `\\ls`). `cd`/`z`, `grep` e `find`
+  forçar o original, use `\comando` (ex.: `\ls`). `cd`/`z`, `grep` e `find`
   continuam os originais.
 - Fundo: o papel de parede do GNOME borrado. Trocou o wallpaper? Rode
   `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
