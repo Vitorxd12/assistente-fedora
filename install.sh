@@ -31,7 +31,7 @@ declare -A DESC=(
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; zsh como shell padrão"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
-  [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect + configs"
+  [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor + configs"
   [firefox]="página inicial padrão e restaurar abas da sessão anterior"
   [auth]="desativa login por digital (authselect)"
   [terminal]="kitty como terminal padrão; remove o Ptyxis (só se rodando no kitty)"
@@ -45,12 +45,14 @@ EXTENSIONS=(
   clipboard-indicator@tudmotu.com
   compiz-windows-effect@hermes83.github.com
   blur-my-shell@aunetx
+  monitor@astraext.github.io      # Astra Monitor (CPU, GPU, memória, sensores na barra)
 )
 
 PKGS_INSTALL=(
   langpacks-pt_BR kitty zsh git curl bat
   liberation-fonts google-carlito-fonts hunspell-pt
   ImageMagick python3-gobject python3-cairo
+  libgtop2                        # usado pelo Astra Monitor
 )
 PKGS_REMOVE=(
   gnome-boxes gnome-connections gnome-maps gnome-weather gnome-contacts
