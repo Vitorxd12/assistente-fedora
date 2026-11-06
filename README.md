@@ -51,6 +51,7 @@ Fluxo recomendado numa instalação nova:
 | `fonts` | JetBrainsMono Nerd Font |
 | `cursor` | Bibata Modern Ice (branco) para GNOME, GTK, XWayland e Flatpak — gera a versão SVG (`cursors_scalable/`) que o GNOME 51 exige |
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
+| `tools` | ferramentas modernas: eza, dust, delta, btop, procs (dnf/cargo) + sd, bottom, tldr, bandwhich, grex, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
 | `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto) + extensão local que tira o botão "Mostrar aplicativos" |
@@ -77,6 +78,11 @@ Fluxo recomendado numa instalação nova:
   a pasta mais usada com esse nome (ex.: `cd tecsus` da home).
 - `z pasta` pula para pastas já visitadas; ↑/↓ buscam no histórico pelo que
   já foi digitado; Esc Esc põe `sudo`; `x arquivo.zip` extrai qualquer formato.
+- Comandos modernos com os nomes de sempre: `ls` → eza, `cat` → bat,
+  `du` → dust, `diff` → delta, `top` → btop, `ps` → procs. Com as opções
+  clássicas (`du -sh`, `diff -u`, `ps aux`) roda o comando original; para
+  forçar o original, use `\\comando` (ex.: `\\ls`). `cd`/`z`, `grep` e `find`
+  continuam os originais.
 - Fundo: o papel de parede do GNOME borrado. Trocou o wallpaper? Rode
   `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
 

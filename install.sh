@@ -21,7 +21,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh kitty gnome extensions firefox auth terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome extensions firefox auth terminal)
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
@@ -29,6 +29,7 @@ declare -A DESC=(
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; zsh como shell padrão"
+  [tools]="ferramentas modernas: eza, dust, delta, btop, procs, sd, bottom, tldr, bandwhich, grex, tokei, hyperfine"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
   [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor + configs"
@@ -54,6 +55,11 @@ PKGS_INSTALL=(
   ImageMagick python3-gobject python3-cairo
   libgtop2                        # usado pelo Astra Monitor
 )
+# Ferramentas modernas de terminal. No .zshrc: ls→eza, du→dust, diff→delta,
+# top→btop, ps→procs (com opções clássicas roda o comando original).
+# cd/z, grep e find continuam os originais de propósito.
+TOOLS_DNF=(eza du-dust git-delta btop tokei hyperfine cargo)
+TOOLS_CARGO=(procs sd bottom tealdeer bandwhich grex)   # não estão nos repositórios do Fedora
 PKGS_REMOVE=(
   gnome-boxes gnome-connections gnome-maps gnome-weather gnome-contacts
   gnome-tour gnome-calendar gnome-clocks mediawriter rygel decibels
@@ -257,6 +263,40 @@ step_zsh() {
     sudo usermod -s "$(command -v zsh)" "$USER" && ok "zsh agora é o shell padrão (vale no próximo login)"
   else
     ok "zsh já é o shell padrão"
+  fi
+}
+
+step_tools() {
+  info "instalando pelo dnf: ${TOOLS_DNF[*]}"
+  sudo dnf install -y "${TOOLS_DNF[@]}" 2>&1 | tee -a "$LOG" | tail -3
+  export PATH="$HOME/.cargo/bin:$PATH"
+  local t missing=()
+  for t in "${TOOLS_CARGO[@]}"; do
+    case $t in bottom) command -v btm >/dev/null || missing+=("$t") ;;
+               tealdeer) command -v tldr >/dev/null || missing+=("$t") ;;
+               *) command -v "$t" >/dev/null || missing+=("$t") ;; esac
+  done
+  if (( ${#missing[@]} )); then
+    info "compilando pelo cargo (pode levar ~10 min): ${missing[*]}"
+    cargo install --locked "${missing[@]}" 2>&1 | tee -a "$LOG" | grep -E '^\s+(Installed|Replaced)|error' || true
+  else
+    ok "ferramentas do cargo já instaladas"
+  fi
+  # git usa o delta para diff/log/show
+  if command -v delta >/dev/null; then
+    git config --global core.pager delta
+    git config --global interactive.diffFilter 'delta --color-only'
+    git config --global delta.navigate true
+    git config --global delta.line-numbers true
+    git config --global merge.conflictStyle zdiff3
+    ok "git configurado com o delta"
+  fi
+  # base de exemplos do tldr
+  command -v tldr >/dev/null && tldr --update >/dev/null 2>&1 && ok "base do tldr baixada"
+  # bandwhich precisa ler a rede: dá a permissão uma vez para rodar sem sudo
+  if [[ -x $HOME/.cargo/bin/bandwhich ]]; then
+    sudo setcap cap_sys_ptrace,cap_dac_read_search,cap_net_raw,cap_net_admin+ep "$HOME/.cargo/bin/bandwhich" \
+      && ok "bandwhich liberado para rodar sem sudo"
   fi
 }
 
