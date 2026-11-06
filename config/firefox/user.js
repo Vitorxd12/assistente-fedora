@@ -7,3 +7,5 @@ user_pref("browser.sessionstore.max_resumed_crashes", 10);
 // não perguntar ao fechar com várias abas
 user_pref("browser.warnOnQuit", false);
 user_pref("browser.tabs.warnOnClose", false);
+// liga o userChrome.css (abas embaixo da barra de endereço)
+user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);

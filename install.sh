@@ -33,7 +33,7 @@ declare -A DESC=(
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
   [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor + configs"
-  [firefox]="página inicial padrão e restaurar abas da sessão anterior"
+  [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
   [auth]="desativa login por digital (authselect)"
   [terminal]="kitty como terminal padrão; remove o Ptyxis (só se rodando no kitty)"
 )
@@ -431,7 +431,10 @@ step_firefox() {
     find_profiles
   fi
   (( ${#profiles[@]} )) || { warn "nenhum perfil do Firefox encontrado; abra o Firefox uma vez e rode: ./install.sh --only firefox"; return 0; }
-  for d in "${profiles[@]}"; do put "$REPO/config/firefox/user.js" "${d%/}/user.js"; done
+  for d in "${profiles[@]}"; do
+    put "$REPO/config/firefox/user.js"       "${d%/}/user.js"
+    put "$REPO/config/firefox/userChrome.css" "${d%/}/chrome/userChrome.css"   # abas embaixo da barra de endereço
+  done
   pgrep -x firefox >/dev/null && warn "reinicie o Firefox (Ctrl+Q) para aplicar"
   return 0
 }

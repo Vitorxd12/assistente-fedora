@@ -55,7 +55,7 @@ Fluxo recomendado numa instalação nova:
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
 | `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto) + extensão local que tira o botão "Mostrar aplicativos" |
-| `firefox` | página inicial padrão (em vez da do Fedora) e reabrir abas da sessão anterior |
+| `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior e abas embaixo da barra de endereço (`userChrome.css`) |
 | `auth` | desativa login por digital e smartcard |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
 
@@ -96,7 +96,7 @@ bin/cursor-scalable           converte cursores Xcursor para o formato SVG do GN
 systemd/accent-sync.service   mantém a cor sincronizada
 config/zsh/                   .zshrc e tema lambda-vitor
 config/kitty/kitty.conf
-config/firefox/user.js
+config/firefox/              user.js e userChrome.css
 config/vlc-mimeapps.list      formatos abertos pelo VLC
 config/extensions/            configurações das extensões + extensão local
 ```

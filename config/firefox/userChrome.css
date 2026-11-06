@@ -1,0 +1,16 @@
+/* ── Abas embaixo da barra de endereço ──────────────────────
+   Ordem: [menu] → endereço/busca → abas → favoritos
+   Testado no Firefox 158 (as barras são filhas diretas do #navigator-toolbox). */
+
+#navigator-toolbox {
+  display: flex !important;
+  flex-direction: column !important;
+}
+#toolbar-menubar  { order: 0 !important; }
+#nav-bar          { order: 1 !important; }
+#TabsToolbar      { order: 2 !important; }
+#PersonalToolbar  { order: 3 !important; }
+
+/* a barra de endereço agora fica no topo da janela: deixa arrastar a janela
+   pelos espaços vazios dela (botões e campo de busca continuam clicáveis) */
+#nav-bar { -moz-window-dragging: drag; }
