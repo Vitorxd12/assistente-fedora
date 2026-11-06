@@ -61,10 +61,18 @@ alias reload='exec zsh'
 export PATH="$HOME/.local/bin:$PATH"
 
 # ── preview de pastas ao digitar "cd " ───────────────────
-# mostra as opções embaixo enquanto digita; Tab escolhe; some no Enter
+# mostra as pastas embaixo enquanto digita (só se couberem na tela); Tab escolhe
 lv_cd_preview() {
-  if [[ $LBUFFER == (cd|z|pushd)\ * && -z $RBUFFER ]]; then
+  if [[ $LBUFFER == cd\ * && -z $RBUFFER ]]; then
+    comppostfuncs=(lv_preview_guard)
     zle list-choices 2>/dev/null
+  fi
+}
+# se a lista não couber na tela, não mostra nada (em vez de perguntar
+# "do you wish to see all N possibilities?" e engolir a próxima tecla)
+lv_preview_guard() {
+  if (( compstate[list_lines] + BUFFERLINES + 2 > LINES )); then
+    compstate[list]=''
   fi
 }
 lv_self_insert()   { zle .self-insert;          lv_cd_preview }
