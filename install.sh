@@ -25,7 +25,7 @@ STEPS=(check packages flatpak fonts cursor zsh kitty gnome extensions firefox au
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
-  [flatpak]="Flathub completo; VLC, Extension Manager, VS Code, RustDesk e Remote Desktop Manager"
+  [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; zsh como shell padrão"
@@ -61,10 +61,7 @@ PKGS_REMOVE=(
   ibus-anthy ibus-chewing ibus-hangul ibus-libpinyin ibus-libzhuyin
   'libreoffice*'
 )
-FLATPAKS=(org.videolan.VLC com.mattjakeman.ExtensionManager com.visualstudio.code com.rustdesk.RustDesk)
-# Remote Desktop Manager: a versão do Flathub foi descontinuada (parou em
-# julho/2026); a Devolutions mantém um repositório Flatpak próprio.
-DEVOLUTIONS_REMOTE="https://cdn.devolutions.net/flatpak/devolutions.flatpakrepo"
+FLATPAKS=(org.videolan.VLC com.mattjakeman.ExtensionManager com.visualstudio.code)
 
 # ── utilidades ────────────────────────────────────────────────
 c_reset=$'\e[0m'; c_bold=$'\e[1m'; c_red=$'\e[31m'; c_grn=$'\e[32m'; c_yel=$'\e[33m'; c_acc=$'\e[38;5;208m'
@@ -161,13 +158,6 @@ step_flatpak() {
   sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   sudo flatpak remote-modify --enable --no-filter flathub && ok "Flathub completo liberado"
   sudo flatpak install -y --noninteractive flathub "${FLATPAKS[@]}" 2>&1 | tee -a "$LOG" | tail -3
-  # Remote Desktop Manager pelo repositório oficial da Devolutions
-  sudo flatpak remote-add --if-not-exists devolutions "$DEVOLUTIONS_REMOTE"
-  if flatpak info com.devolutions.remotedesktopmanager//stable &>/dev/null; then
-    sudo flatpak uninstall -y --noninteractive com.devolutions.remotedesktopmanager//stable  # versão abandonada do Flathub
-  fi
-  sudo flatpak install -y --noninteractive devolutions com.devolutions.remotedesktopmanager//current 2>&1 | tee -a "$LOG" | tail -3
-  ok "Remote Desktop Manager (repositório da Devolutions)"
   # VLC como player padrão de áudio e vídeo (mescla com o mimeapps.list existente)
   python3 - "$REPO/config/vlc-mimeapps.list" "$HOME/.config/mimeapps.list" <<'EOF'
 import sys, os
