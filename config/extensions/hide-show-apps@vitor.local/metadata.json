@@ -1,0 +1,6 @@
+{
+  "uuid": "hide-show-apps@vitor.local",
+  "name": "Hide Show Apps Button",
+  "description": "Remove o botão 'Mostrar aplicativos' da dock.",
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"]
+}

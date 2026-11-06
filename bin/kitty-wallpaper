@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Gera ~/.config/kitty/wallpaper-blur.png a partir do papel de parede atual do GNOME
+# (versão clara ou escura conforme o tema) e recarrega o kitty.
+#   uso: kitty-wallpaper [quantidade-de-blur]   (padrão: 18)
+set -euo pipefail
+
+BLUR="${1:-18}"
+OUT="$HOME/.config/kitty/wallpaper-blur.png"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo "'default'")
+if [[ $scheme == "'prefer-dark'" ]]; then
+  uri=$(gsettings get org.gnome.desktop.background picture-uri-dark)
+else
+  uri=$(gsettings get org.gnome.desktop.background picture-uri)
+fi
+uri=${uri//\'/}
+src=$(python3 -c 'import sys, urllib.parse as u; print(u.unquote(u.urlparse(sys.argv[1]).path))' "$uri")
+
+if [[ ! -f $src ]]; then
+  echo "kitty-wallpaper: papel de parede não encontrado: $src" >&2
+  exit 1
+fi
+
+case "${src,,}" in
+  *.svg)
+    # SVG → PNG via librsvg (o kitty não lê SVG)
+    python3 - "$src" "$TMP/full.png" <<'EOF'
+import sys, gi, cairo
+gi.require_version('Rsvg', '2.0')
+from gi.repository import Rsvg
+h = Rsvg.Handle.new_from_file(sys.argv[1])
+ok, w, hgt = h.get_intrinsic_size_in_pixels()
+if not ok or not w or not hgt:
+    w = hgt = 2560
+scale = 2560 / max(w, hgt)
+W, H = int(w * scale), int(hgt * scale)
+s = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
+vp = Rsvg.Rectangle(); vp.x = 0; vp.y = 0; vp.width = W; vp.height = H
+h.render_document(cairo.Context(s), vp)
+s.write_to_png(sys.argv[2])
+EOF
+    ;;
+  *.xml)
+    echo "kitty-wallpaper: papel de parede dinâmico (.xml) não suportado" >&2
+    exit 1
+    ;;
+  *)
+    magick "$src" -resize '2560x2560>' "$TMP/full.png"
+    ;;
+esac
+
+mkdir -p "$(dirname "$OUT")"
+# reduz, borra e amplia de novo: blur forte e rápido
+magick "$TMP/full.png" -resize 25% -blur "0x$BLUR" -resize 400% "$OUT"
+echo "kitty-wallpaper: gerado $OUT"
+
+pkill -USR1 -x kitty 2>/dev/null || true

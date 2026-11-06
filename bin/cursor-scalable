@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""
+cursor-scalable — gera a pasta cursors_scalable/ (formato SVG que o GNOME 51
+usa para desenhar o cursor) a partir de um tema Xcursor comum.
+
+Por quê: o gnome-shell novo só lê cursores em <tema>/cursors_scalable/.
+Temas como o Bibata só trazem o formato antigo (<tema>/cursors/), então o
+GNOME ignora o tema e volta para o Adwaita — só apps X11 (ex.: kitty) mostram
+o cursor certo.
+
+Como: para cada cursor, pega a maior imagem do arquivo Xcursor, embute como
+PNG dentro de um SVG e escreve o metadata.json com o hotspot e, se for
+animado, o delay de cada quadro.
+
+uso: cursor-scalable ~/.icons/Bibata-Modern-Ice [~/.icons/Bibata-Modern-Classic ...]
+"""
+import base64
+import io
+import json
+import os
+import struct
+import sys
+
+import cairo
+
+XCURSOR_IMAGE_TYPE = 0xFFFD0002
+NOMINAL = 24  # tamanho lógico do cursor no GNOME
+
+
+def read_xcursor(path):
+    """Retorna {tamanho_nominal: [quadros]} com quadro = (w, h, xhot, yhot, delay, pixels)."""
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:4] != b"Xcur":
+        raise ValueError("não é Xcursor")
+    header, _version, ntoc = struct.unpack_from("<III", data, 4)
+    sizes = {}
+    for i in range(ntoc):
+        typ, subtype, pos = struct.unpack_from("<III", data, header + i * 12)
+        if typ != XCURSOR_IMAGE_TYPE:
+            continue
+        _chunk_hdr, _t, size, _ver, w, h, xhot, yhot, delay = struct.unpack_from("<9I", data, pos)
+        start = pos + 36
+        pixels = data[start:start + w * h * 4]
+        sizes.setdefault(size, []).append((w, h, xhot, yhot, delay, pixels))
+    if not sizes:
+        raise ValueError("sem imagens")
+    return sizes
+
+
+def frame_to_png(w, h, pixels):
+    # Xcursor usa ARGB32 pré-multiplicado, igual ao cairo.FORMAT_ARGB32 (little-endian)
+    stride = cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_ARGB32, w)
+    buf = bytearray(stride * h)
+    for y in range(h):
+        buf[y * stride:y * stride + w * 4] = pixels[y * w * 4:(y + 1) * w * 4]
+    surf = cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h, stride)
+    out = io.BytesIO()
+    surf.write_to_png(out)
+    return out.getvalue()
+
+
+def convert_cursor(src, dst_dir, name):
+    sizes = read_xcursor(src)
+    big = max(sizes)                 # maior resolução disponível
+    frames = sizes[big]
+    scale = NOMINAL / big
+    os.makedirs(dst_dir, exist_ok=True)
+    meta = []
+    for i, (w, h, xhot, yhot, delay, pixels) in enumerate(frames, 1):
+        fname = f"{name}.svg" if len(frames) == 1 else f"{name}-{i:02d}.svg"
+        png = base64.b64encode(frame_to_png(w, h, pixels)).decode()
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            f'width="{w * scale:g}" height="{h * scale:g}" viewBox="0 0 {w} {h}">'
+            f'<image width="{w}" height="{h}" xlink:href="data:image/png;base64,{png}"/></svg>\n'
+        )
+        with open(os.path.join(dst_dir, fname), "w") as f:
+            f.write(svg)
+        entry = {
+            "filename": fname,
+            "hotspot_x": round(xhot * scale, 2),
+            "hotspot_y": round(yhot * scale, 2),
+            "nominal_size": NOMINAL,
+        }
+        if len(frames) > 1:
+            entry["delay"] = delay or 30
+        meta.append(entry)
+    with open(os.path.join(dst_dir, "metadata.json"), "w") as f:
+        json.dump(meta, f, indent=4)
+
+
+def convert_theme(theme):
+    src_dir = os.path.join(theme, "cursors")
+    dst_root = os.path.join(theme, "cursors_scalable")
+    if not os.path.isdir(src_dir):
+        print(f"cursor-scalable: {src_dir} não existe", file=sys.stderr)
+        return False
+    ok = fail = 0
+    for name in sorted(os.listdir(src_dir)):
+        src = os.path.join(src_dir, name)
+        if not os.path.isfile(src):
+            continue
+        try:
+            convert_cursor(os.path.realpath(src), os.path.join(dst_root, name), name)
+            ok += 1
+        except Exception as e:  # noqa: BLE001 — segue com os outros cursores
+            print(f"  ! {name}: {e}", file=sys.stderr)
+            fail += 1
+    print(f"cursor-scalable: {os.path.basename(theme.rstrip('/'))}: {ok} cursores gerados"
+          + (f", {fail} com erro" if fail else ""))
+    return ok > 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    results = [convert_theme(os.path.expanduser(t)) for t in sys.argv[1:]]
+    sys.exit(0 if all(results) else 1)
