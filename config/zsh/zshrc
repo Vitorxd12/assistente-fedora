@@ -74,3 +74,26 @@ zle -N self-insert          lv_self_insert
 zle -N backward-delete-char lv_backward_del
 zle -N magic-space          lv_magic_space
 LISTMAX=0                   # só pergunta "mostrar todas?" se não couber na tela
+
+# ── cd inteligente ────────────────────────────────────────
+# Funciona como o cd normal; se a pasta não existir onde você está, pula para
+# a pasta mais usada com esse nome (via zoxide, se instalado, ou o z).
+#   cd tecsus   → ~/repos/wmsaude/tecsus, de qualquer lugar
+cd() {
+  # sem argumento, opções (-, -P...), caminhos com / ou pastas que existem → cd normal
+  if (( $# != 1 )) || [[ $1 == -* || $1 == */* || -d $1 ]]; then
+    builtin cd "$@"; return
+  fi
+  builtin cd "$1" 2>/dev/null && return          # CDPATH etc.
+  local dest
+  if command -v zoxide >/dev/null; then
+    dest=$(zoxide query -- "$1" 2>/dev/null)
+  else
+    dest=$(zshz -e "$1" 2>/dev/null)
+  fi
+  if [[ -n $dest && -d $dest ]]; then
+    builtin cd -- "$dest" && print -P "%F{244}→ %~%f"
+  else
+    print -u2 "cd: pasta não encontrada: $1"; return 1
+  fi
+}

@@ -73,6 +73,8 @@ Fluxo recomendado numa instalação nova:
   (a pasta usa a mesma cor, escurecida). O `❯` fica vermelho quando o último
   comando falha.
 - Ao digitar `cd `, as pastas aparecem embaixo; Tab escolhe.
+- `cd nome` funciona de qualquer lugar: se a pasta não existe ali, pula para
+  a pasta mais usada com esse nome (ex.: `cd tecsus` da home).
 - `z pasta` pula para pastas já visitadas; ↑/↓ buscam no histórico pelo que
   já foi digitado; Esc Esc põe `sudo`; `x arquivo.zip` extrai qualquer formato.
 - Fundo: o papel de parede do GNOME borrado. Trocou o wallpaper? Rode
