@@ -74,7 +74,7 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
+| `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2 com Ctrl+Alt como AltGr, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto) + extensão local que tira o botão "Mostrar aplicativos" |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
@@ -105,8 +105,13 @@ Fluxo recomendado numa instalação nova:
   clássicas (`du -sh`, `diff -u`) roda o comando original; para
   forçar o original, use `\comando` (ex.: `\ls`). `cd`/`z`, `grep` e `find`
   continuam os originais.
-- Fundo: o papel de parede do GNOME borrado. Trocou o wallpaper? Rode
-  `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
+- Fundo: o papel de parede do GNOME borrado. O serviço `accent-sync` acompanha
+  mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente.
+  Para gerar manualmente, rode `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
+- Rolagem no Kitty: 50% mais rápida, com Wayland selecionado automaticamente
+  quando disponível. Abra uma nova janela após aplicar a etapa `kitty` para mudar o servidor gráfico.
+- Ctrl+Alt funciona como AltGr no ABNT2 usando `config/xkb/types/custom`,
+  instalado em `~/.config/xkb/types/custom` pela etapa `gnome` (ou em `$XDG_CONFIG_HOME/xkb/types/custom`, se definido).
 
 ## Estrutura
 

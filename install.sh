@@ -95,6 +95,16 @@ GIT_CONFIG=(
 
 # ── configurações do GNOME (tabela: schema[:caminho] | chave | valor | descrição)
 # A mesma tabela serve para mostrar o plano (valor atual → novo) e para aplicar.
+keyboard_options() {
+  python3 - <<'PY'
+from gi.repository import Gio
+s = Gio.Settings.new("org.gnome.desktop.input-sources")
+options = s.get_strv("xkb-options")
+if "custom:types" not in options:
+    options.append("custom:types")
+print(repr(options))
+PY
+}
 gnome_table() {
   local P=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings
   local K=org.gnome.settings-daemon.plugins.media-keys.custom-keybinding
@@ -106,12 +116,14 @@ org.gnome.desktop.background|picture-uri|'file:///usr/share/backgrounds/gnome/bl
 org.gnome.desktop.background|picture-uri-dark|'file:///usr/share/backgrounds/gnome/blobs-d.svg'|papel de parede (tema escuro)
 org.gnome.desktop.background|picture-options|'zoom'|ajuste do papel de parede
 org.gnome.desktop.screensaver|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|fundo da tela de bloqueio
-org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões das janelas
+org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões minimizar, maximizar e fechar à direita
 org.gnome.desktop.input-sources|sources|[('xkb', 'br')]|layout do teclado (ABNT2)
+org.gnome.desktop.input-sources|xkb-options|$(keyboard_options)|Ctrl+Alt como AltGr
 org.gnome.desktop.peripherals.keyboard|numlock-state|true|NumLock ligado ao iniciar
 org.gnome.desktop.peripherals.mouse|accel-profile|'flat'|aceleração do mouse
 org.gnome.desktop.peripherals.mouse|speed|-0.13|velocidade do mouse
 org.gnome.desktop.peripherals.touchpad|two-finger-scrolling-enabled|true|rolagem com dois dedos
+org.gnome.desktop.peripherals.touchpad|tap-and-drag|false|arrastar com dois toques no touchpad
 org.gnome.desktop.privacy|remember-recent-files|false|histórico de arquivos recentes (some "Recentes" do Nautilus)
 org.gnome.desktop.privacy|report-technical-problems|false|envio de relatórios de problemas
 org.gnome.shell|favorite-apps|@as []|apps fixados na dock (dock vazia)
@@ -181,7 +193,7 @@ plan_file() {  # plan_file ORIGEM DESTINO [descrição]
 
 # gsettings em lote a partir de uma tabela: modo plan (lista diferenças) ou apply
 gs_tool() {  # gs_tool plan|apply < tabela
-  python3 - "$1" <<'EOF'
+  python3 -c '
 import sys, gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
@@ -214,7 +226,7 @@ for line in sys.stdin:
         s.set_value(key, new)
         print(f"SET|{label}")
 Gio.Settings.sync()
-EOF
+' "$1"
 }
 plan_gs() {  # plan_gs FUNÇÃO_TABELA
   local kind label cur new
@@ -404,11 +416,13 @@ plan_kitty() {
   plan_file "$REPO/bin/kitty-wallpaper" "$HOME/.local/bin/kitty-wallpaper" "wallpaper → fundo borrado"
   plan_file "$REPO/systemd/accent-sync.service" "$HOME/.config/systemd/user/accent-sync.service" "serviço"
   systemctl --user is-enabled accent-sync.service &>/dev/null || plan_add "ativar o serviço accent-sync (kitty acompanha a cor de destaque)"
+  systemctl --user is-active accent-sync.service &>/dev/null || plan_add "iniciar o serviço accent-sync (wallpaper e cor de destaque)"
   [[ -f $HOME/.config/kitty/wallpaper-blur.png ]] || plan_add "gerar o fundo do terminal a partir do papel de parede atual"
   return 0
 }
 
 plan_gnome() {
+  plan_file "$REPO/config/xkb/types/custom" "${XDG_CONFIG_HOME:-$HOME/.config}/xkb/types/custom" "Ctrl+Alt como AltGr (XKB)"
   plan_gs gnome_table
   local d
   [[ -d $HOME/repos ]] || plan_add "criar a pasta ~/repos"
@@ -426,7 +440,15 @@ plan_extensions() {
   command -v gnome-extensions >/dev/null || { plan_note "gnome-extensions não encontrado"; return 0; }
   local uuid enabled
   for uuid in "${EXTENSIONS[@]}"; do
-    [[ -d $HOME/.local/share/gnome-shell/extensions/$uuid ]] || plan_add "baixar a extensão ${EXT_NAME[$uuid]} (extensions.gnome.org)"
+    [[ -s $HOME/.local/share/gnome-shell/extensions/$uuid/metadata.json && -s $HOME/.local/share/gnome-shell/extensions/$uuid/extension.js ]] || plan_add "baixar a extensão ${EXT_NAME[$uuid]} (extensions.gnome.org)"
+    local status
+    status=$(LC_ALL=C gnome-extensions info "$uuid" 2>/dev/null) || status=""
+    if [[ -z $status && -s $HOME/.local/share/gnome-shell/extensions/$uuid/metadata.json ]]; then
+      plan_chg "${EXT_NAME[$uuid]}: instalada em disco, mas ainda não reconhecida pelo GNOME; verificar ativação"
+    fi
+    if [[ $status == *"State: ERROR"* || $status == *"State: OUT OF DATE"* ]]; then
+      plan_chg "verificar ${EXT_NAME[$uuid]}: erro ou incompatibilidade no GNOME"
+    fi
   done
   plan_file "$REPO/config/extensions/hide-show-apps@vitor.local/extension.js" \
     "$HOME/.local/share/gnome-shell/extensions/hide-show-apps@vitor.local/extension.js" "${EXT_NAME[hide-show-apps@vitor.local]}"
@@ -515,9 +537,24 @@ step_packages() {
 
 step_flatpak() {
   command -v flatpak >/dev/null || { err "flatpak não instalado"; return 1; }
-  sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-  sudo flatpak remote-modify --enable --no-filter flathub && ok "Flathub completo liberado"
-  sudo flatpak install -y --noninteractive flathub "${FLATPAKS[@]}" 2>&1 | tee -a "$LOG" | tail -3
+  local remotes
+  remotes=$(flatpak remotes --system --columns=name) || return $?
+  # remote-add pode buscar o .flatpakrepo mesmo com --if-not-exists.
+  if ! grep -qx flathub <<<"$remotes"; then
+    sudo flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || return $?
+  fi
+  sudo flatpak remote-modify --system --enable --no-filter flathub || return $?
+  ok "Flathub completo liberado"
+  # Não truncar: avisos após o erro podem esconder a causa da falha.
+  local rc
+  if sudo flatpak install --system -y --noninteractive flathub "${FLATPAKS[@]}" 2>&1 | tee -a "$LOG"; then
+    :
+  else
+    rc=$?
+    err "instalação Flatpak falhou; saída completa em $(short "$LOG")"
+    warn "se houve falha de rede/DNS, restabeleça a conexão e rode: ./install.sh --only flatpak"
+    return "$rc"
+  fi
   # VLC como player padrão de áudio e vídeo (mescla com o mimeapps.list existente)
   python3 - "$REPO/config/vlc-mimeapps.list" "$HOME/.config/mimeapps.list" <<'EOF'
 import sys, os
@@ -641,13 +678,14 @@ step_kitty() {
   mkdir -p "$HOME/.config/systemd/user"
   put "$REPO/systemd/accent-sync.service" "$HOME/.config/systemd/user/accent-sync.service"
   if systemctl --user daemon-reload 2>/dev/null; then
-    systemctl --user enable --now accent-sync.service 2>/dev/null && ok "serviço accent-sync ativo" \
+    systemctl --user enable accent-sync.service 2>/dev/null && systemctl --user restart accent-sync.service 2>/dev/null && ok "serviço accent-sync ativo" \
       || warn "não consegui ativar o accent-sync agora; rode: systemctl --user enable --now accent-sync"
   fi
   "$HOME/.local/bin/kitty-wallpaper" || warn "não consegui gerar o fundo; rode depois: kitty-wallpaper"
 }
 
 step_gnome() {
+  put "$REPO/config/xkb/types/custom" "${XDG_CONFIG_HOME:-$HOME/.config}/xkb/types/custom"
   apply_gs gnome_table
   mkdir -p "$HOME/repos"
   local bm="$HOME/.config/gtk-3.0/bookmarks" d
@@ -667,17 +705,17 @@ step_gnome() {
 
 step_extensions() {
   command -v gnome-extensions >/dev/null || { err "gnome-extensions não encontrado"; return 1; }
-  local shell_ver uuid info url tmp
+  local shell_ver uuid info url tmp failures=0 pending=0
   shell_ver=$(gnome-shell --version | grep -oE '[0-9]+' | head -1)
   for uuid in "${EXTENSIONS[@]}"; do
-    [[ -d $HOME/.local/share/gnome-shell/extensions/$uuid ]] && continue
+    [[ -s $HOME/.local/share/gnome-shell/extensions/$uuid/metadata.json && -s $HOME/.local/share/gnome-shell/extensions/$uuid/extension.js ]] && continue
     info=$(curl -fsSL "https://extensions.gnome.org/extension-info/?uuid=$uuid&shell_version=$shell_ver") \
-      || { err "${EXT_NAME[$uuid]}: sem versão para GNOME $shell_ver"; continue; }
+      || { err "${EXT_NAME[$uuid]}: falha ao consultar versão para GNOME $shell_ver"; failures=$((failures+1)); continue; }
     url=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["download_url"])' "$info") \
-      || { err "${EXT_NAME[$uuid]}: resposta inválida"; continue; }
+      || { err "${EXT_NAME[$uuid]}: resposta inválida"; failures=$((failures+1)); continue; }
     tmp=$(mktemp --suffix=.zip)
     curl -fsSL "https://extensions.gnome.org$url" -o "$tmp" && gnome-extensions install --force "$tmp" \
-      && ok "${EXT_NAME[$uuid]} instalada" || err "${EXT_NAME[$uuid]}: falha ao instalar"
+      && ok "${EXT_NAME[$uuid]} instalada" || { err "${EXT_NAME[$uuid]}: falha ao instalar"; failures=$((failures+1)); }
     rm -f "$tmp"
   done
   # extensão local que esconde o botão "Mostrar aplicativos"
@@ -696,8 +734,36 @@ for u in sys.argv[1:]:
 subprocess.run(["gsettings", "set", "org.gnome.shell", "enabled-extensions", str(cur)], check=True)
 EOF
   apply_gs extensions_table
-  ok "extensões ativadas (as novas aparecem no próximo login)"
-  dconf load /org/gnome/shell/extensions/ < "$REPO/config/extensions/settings.dconf" && ok "configurações das extensões aplicadas"
+  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local; do
+    local activation
+    if activation=$(gnome-extensions enable "$uuid" 2>&1); then
+      local status
+      status=$(LC_ALL=C gnome-extensions info "$uuid" 2>/dev/null) || status=""
+      if [[ $status == *"State: ERROR"* || $status == *"State: OUT OF DATE"* ]]; then
+        err "${EXT_NAME[$uuid]}: erro ao carregar; veja: gnome-extensions info '$uuid'"
+        failures=$((failures+1))
+      elif [[ $status == *"State: ACTIVE"* || $status == *"State: ENABLED"* ]]; then
+        ok "${EXT_NAME[$uuid]}: ativa no GNOME"
+      else
+        warn "${EXT_NAME[$uuid]}: ativação solicitada, mas execução ainda não confirmada"
+        [[ -z $status ]] || say "$status"
+        pending=$((pending+1))
+      fi
+    else
+      warn "${EXT_NAME[$uuid]}: arquivos instalados e ativação salva, mas o GNOME não confirmou o carregamento"
+      [[ -z $activation ]] || say "$activation"
+      pending=$((pending+1))
+    fi
+  done
+  dconf load /org/gnome/shell/extensions/ < "$REPO/config/extensions/settings.dconf" || return $?
+  ok "configurações das extensões aplicadas"
+  (( failures == 0 )) || return 1
+  if (( pending )); then
+    warn "saia da sessão GNOME e entre novamente (fechar o terminal não basta)"
+    warn "se continuar sem aparecer: gnome-extensions list; journalctl --user -b _COMM=gnome-shell --no-pager -n 80"
+    return 3
+  fi
+  return 0
 }
 
 step_firefox() {
@@ -847,13 +913,19 @@ if (( ! DRY_RUN )); then
   trap 'kill $SUDO_KEEPALIVE 2>/dev/null' EXIT
 fi
 
-applied=(); skipped=(); uptodate=(); failed=()
+applied=(); skipped=(); uptodate=(); failed=(); pending=()
 for s in "${selected[@]}"; do
   [[ $s == check ]] && continue
   confirm_step "$s"; rc=$?
   case $rc in
     0) ( set -e; "step_$s" ); rc=$?
-       if (( rc != 0 )); then err "etapa '$s' falhou (código $rc)"; failed+=("$s"); else applied+=("$s"); fi ;;
+       if (( rc == 3 )) && [[ $s == extensions ]]; then
+         pending+=("$s")
+       elif (( rc != 0 )); then
+         err "etapa '$s' falhou (código $rc)"; failed+=("$s")
+       else
+         applied+=("$s")
+       fi ;;
     1) (( PLAN_N == 0 )) && uptodate+=("$s") || skipped+=("$s") ;;
     2) say "  saindo a pedido do usuário"; break ;;
   esac
@@ -864,6 +936,7 @@ say "${c_bold}resumo${c_reset}"
 (( ${#applied[@]} ))  && say "  ${c_grn}✔ aplicadas:${c_reset}    ${applied[*]}"
 (( ${#uptodate[@]} )) && say "  ${c_grn}✔ já estavam ok:${c_reset} ${uptodate[*]}"
 (( ${#skipped[@]} ))  && say "  ${c_yel}↷ puladas:${c_reset}      ${skipped[*]}"
+(( ${#pending[@]} )) && say "  ${c_yel}! carregamento pendente no GNOME:${c_reset} ${pending[*]} — saia da sessão, entre novamente e rode ./install.sh --only extensions"
 if (( ${#failed[@]} )); then
   say "  ${c_red}✘ com falha:${c_reset}    ${failed[*]}"
   say "  rode de novo só essas etapas:  ./install.sh --only $(IFS=,; echo "${failed[*]}")"

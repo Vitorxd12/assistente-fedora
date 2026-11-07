@@ -2,6 +2,7 @@
 # Sincroniza a cor de destaque do GNOME com o kitty e o prompt do zsh.
 apply() {
   local name hex fg
+  mkdir -p "$HOME/.cache" "$HOME/.config/kitty"
   name=$(gsettings get org.gnome.desktop.interface accent-color 2>/dev/null | tr -d "'")
   case "$name" in
     blue)   hex='#3584e4' ;;  teal)   hex='#2190a4' ;;
@@ -23,6 +24,36 @@ CONF
   pkill -USR1 -x kitty 2>/dev/null || true   # kitty recarrega a config
 }
 apply
-if [[ $1 == --watch ]]; then
-  gsettings monitor org.gnome.desktop.interface accent-color | while read -r _; do apply; done
+if [[ ${1:-} == --watch ]]; then
+  # Mantém referências aos dois schemas para receber mudanças via D-Bus.
+  python3 - "$0" <<'PY'
+import os
+import subprocess
+import sys
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+accent = os.path.abspath(sys.argv[1])
+wallpaper = os.path.join(os.path.dirname(accent), "kitty-wallpaper")
+
+def run(command):
+    result = subprocess.run([command], check=False)
+    if result.returncode:
+        print(f"accent-sync: {command} falhou ({result.returncode})", file=sys.stderr, flush=True)
+
+interface = Gio.Settings.new("org.gnome.desktop.interface")
+background = Gio.Settings.new("org.gnome.desktop.background")
+interface.connect("changed::accent-color", lambda *_: run(accent))
+interface.connect("changed::color-scheme", lambda *_: run(wallpaper))
+background.connect("changed::picture-uri", lambda *_: run(wallpaper))
+background.connect("changed::picture-uri-dark", lambda *_: run(wallpaper))
+# Inscreve as chaves antes de iniciar o loop de eventos.
+interface.get_value("accent-color")
+interface.get_value("color-scheme")
+background.get_value("picture-uri")
+background.get_value("picture-uri-dark")
+run(wallpaper)
+GLib.MainLoop().run()
+PY
 fi

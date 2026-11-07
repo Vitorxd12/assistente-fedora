@@ -1,5 +1,5 @@
 [Unit]
-Description=Sincroniza a cor de destaque do GNOME com o kitty
+Description=Sincroniza o wallpaper e a cor de destaque do GNOME com o kitty
 PartOf=graphical-session.target
 After=graphical-session.target
 
