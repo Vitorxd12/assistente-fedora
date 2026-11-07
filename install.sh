@@ -9,6 +9,7 @@
 #   ./install.sh --dry-run       só mostra o que mudaria, sem alterar nada
 #   ./install.sh --yes           aplica tudo sem perguntar (mas mostra o plano)
 #   ./install.sh --only kitty,zsh
+#   ./install.sh --only wallpaper,extensions
 #   ./install.sh --skip flatpak
 #   ./install.sh --list          lista as etapas
 #
@@ -24,7 +25,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome extensions firefox vscode auth terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth terminal)
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
@@ -35,7 +36,8 @@ declare -A DESC=(
   [tools]="ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git com delta"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
-  [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor + configs"
+  [wallpaper]="papel de parede Blobs do GNOME acompanha a cor de destaque"
+  [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor, gestos do touchpad e cor de destaque nas Configurações Rápidas"
   [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
   [vscode]="configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões"
   [auth]="desativa login por digital (authselect)"
@@ -51,6 +53,7 @@ EXTENSIONS=(
   compiz-windows-effect@hermes83.github.com
   blur-my-shell@aunetx
   monitor@astraext.github.io      # Astra Monitor (CPU, GPU, memória, sensores na barra)
+  touchpad-gesture-customization@coooolapps.com
 )
 declare -A EXT_NAME=(
   [tilingshell@ferrarodomenico.com]="Tiling Shell"
@@ -58,8 +61,10 @@ declare -A EXT_NAME=(
   [compiz-windows-effect@hermes83.github.com]="Compiz Windows Effect"
   [blur-my-shell@aunetx]="Blur my Shell"
   [monitor@astraext.github.io]="Astra Monitor"
+  [touchpad-gesture-customization@coooolapps.com]="Touchpad Gesture Customization"
   [hide-show-apps@vitor.local]="esconder botão 'Mostrar aplicativos'"
   [background-logo@fedorahosted.org]="logo do Fedora no fundo"
+  [accent-quick-settings@vitor.local]="seletor de cor de destaque nas Configurações Rápidas"
 )
 
 PKGS_INSTALL=(
@@ -112,8 +117,6 @@ gnome_table() {
 org.gnome.desktop.interface|color-scheme|'prefer-dark'|tema escuro
 org.gnome.desktop.interface|accent-color|'red'|cor de destaque
 org.gnome.desktop.interface|enable-hot-corners|false|cantos ativos (canto superior esquerdo)
-org.gnome.desktop.background|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|papel de parede (tema claro)
-org.gnome.desktop.background|picture-uri-dark|'file:///usr/share/backgrounds/gnome/blobs-d.svg'|papel de parede (tema escuro)
 org.gnome.desktop.background|picture-options|'zoom'|ajuste do papel de parede
 org.gnome.desktop.screensaver|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|fundo da tela de bloqueio
 org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões minimizar, maximizar e fechar à direita
@@ -421,6 +424,40 @@ plan_kitty() {
   return 0
 }
 
+plan_wallpaper() {
+  local script="$HOME/.local/bin/gnome-accent-wallpaper"
+  local data_dir="${XDG_DATA_HOME:-$HOME/.local/share}"
+  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}"
+  local wallpaper_dir="$data_dir/backgrounds/gnome-accent-wallpaper"
+  local accent uri pid cmd uri_key variant watcher_ok=0
+
+  plan_file "$REPO/bin/gnome-accent-wallpaper" "$script" "wallpaper acompanha a cor do GNOME"
+  [[ -f $config_dir/autostart/gnome-accent-wallpaper.desktop ]] || plan_add "iniciar a sincronização junto com a sessão GNOME"
+  [[ -f $state_dir/gnome-accent-wallpaper/state.json ]] || plan_add "guardar os wallpapers atuais para poder restaurá-los"
+
+  accent=$(gsettings get org.gnome.desktop.interface accent-color 2>/dev/null | tr -d "'")
+  [[ -n $accent ]] || accent=red
+  for uri_key in picture-uri picture-uri-dark; do
+    variant=light
+    [[ $uri_key == picture-uri-dark ]] && variant=dark
+    uri=$(gsettings get org.gnome.desktop.background "$uri_key" 2>/dev/null || true)
+    [[ $uri == *"$wallpaper_dir/blobs-$variant-$accent.svg"* ]] || plan_add "sincronizar papel de parede $variant com a cor $accent"
+    [[ -s $wallpaper_dir/blobs-$variant-$accent.svg ]] || plan_add "gerar a versão $variant do wallpaper para a cor $accent"
+  done
+
+  local pid_file="$state_dir/gnome-accent-wallpaper/watcher.pid"
+  if [[ -r $pid_file ]]; then
+    read -r pid < "$pid_file"
+    if [[ -r /proc/$pid/cmdline ]]; then
+      cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline")
+      [[ $cmd == *"$script --watch"* ]] && watcher_ok=1
+    fi
+  fi
+  (( watcher_ok )) || plan_add "iniciar o observador de mudanças da cor de destaque"
+  return 0
+}
+
 plan_gnome() {
   plan_file "$REPO/config/xkb/types/custom" "${XDG_CONFIG_HOME:-$HOME/.config}/xkb/types/custom" "Ctrl+Alt como AltGr (XKB)"
   plan_gs gnome_table
@@ -452,14 +489,18 @@ plan_extensions() {
   done
   plan_file "$REPO/config/extensions/hide-show-apps@vitor.local/extension.js" \
     "$HOME/.local/share/gnome-shell/extensions/hide-show-apps@vitor.local/extension.js" "${EXT_NAME[hide-show-apps@vitor.local]}"
+  plan_file "$REPO/config/extensions/accent-quick-settings@vitor.local/extension.js" \
+    "$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local/extension.js" "${EXT_NAME[accent-quick-settings@vitor.local]}"
+  plan_file "$REPO/config/extensions/accent-quick-settings@vitor.local/metadata.json" \
+    "$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local/metadata.json" "${EXT_NAME[accent-quick-settings@vitor.local]}"
   enabled=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)
-  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local background-logo@fedorahosted.org; do
+  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org; do
     [[ $enabled == *"'$uuid'"* ]] || plan_add "ativar ${EXT_NAME[$uuid]}"
   done
   local cur; cur=$(mktemp)
   ext_settings_current > "$cur"
   if ! cmp -s "$cur" "$REPO/config/extensions/settings.dconf"; then
-    plan_chg "configurações das extensões ${c_dim}(Blur my Shell, Astra Monitor, Clipboard Super+V, layouts do Tiling Shell)${c_reset}"
+    plan_chg "configurações das extensões ${c_dim}(Blur my Shell, Astra Monitor, Clipboard Super+V, layouts do Tiling Shell, gestos de volume e áreas de trabalho)${c_reset}"
     DETAILS+=("$REPO/config/extensions/settings.dconf|$cur")
   fi
   plan_gs extensions_table
@@ -703,6 +744,12 @@ step_gnome() {
   fi
 }
 
+step_wallpaper() {
+  mkdir -p "$HOME/.local/bin"
+  install -m 755 "$REPO/bin/gnome-accent-wallpaper" "$HOME/.local/bin/gnome-accent-wallpaper"
+  "$HOME/.local/bin/gnome-accent-wallpaper" --install
+}
+
 step_extensions() {
   command -v gnome-extensions >/dev/null || { err "gnome-extensions não encontrado"; return 1; }
   local shell_ver uuid info url tmp failures=0 pending=0
@@ -722,8 +769,13 @@ step_extensions() {
   local dst="$HOME/.local/share/gnome-shell/extensions/hide-show-apps@vitor.local"
   mkdir -p "$dst"
   cp "$REPO/config/extensions/hide-show-apps@vitor.local/"* "$dst/"
+  # extensão local: remove três toggles e adiciona o seletor de cor de destaque
+  local accent_dst="$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local"
+  gnome-extensions disable accent-quick-settings@vitor.local >/dev/null 2>&1 || true
+  mkdir -p "$accent_dst"
+  cp "$REPO/config/extensions/accent-quick-settings@vitor.local/"* "$accent_dst/"
   # ativa todas (o GNOME carrega extensões novas no próximo login)
-  python3 - "${EXTENSIONS[@]}" hide-show-apps@vitor.local background-logo@fedorahosted.org <<'EOF'
+  python3 - "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org <<'EOF'
 import subprocess, sys, ast
 cur = subprocess.run(["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
                      capture_output=True, text=True).stdout.strip()
@@ -734,7 +786,7 @@ for u in sys.argv[1:]:
 subprocess.run(["gsettings", "set", "org.gnome.shell", "enabled-extensions", str(cur)], check=True)
 EOF
   apply_gs extensions_table
-  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local; do
+  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local; do
     local activation
     if activation=$(gnome-extensions enable "$uuid" 2>&1); then
       local status

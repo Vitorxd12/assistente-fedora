@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""Recolor GNOME's default Blobs SVG wallpapers to match accent-color."""
+
+from __future__ import annotations
+
+import ast
+import colorsys
+import fcntl
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+
+SCHEMA = "org.gnome.desktop.interface"
+BACKGROUND_SCHEMA = "org.gnome.desktop.background"
+ACCENT_KEY = "accent-color"
+WALLPAPER_KEYS = {
+    "picture-uri": ("light", "blobs-l.svg"),
+    "picture-uri-dark": ("dark", "blobs-d.svg"),
+}
+# (accent hue in degrees, hue compression, saturation scale). Compressing the
+# source rainbow toward an analogous range keeps the original layers and
+# gradients, while preventing opposite hues from turning into muddy accents.
+# Saturation is tuned per family so green/yellow stay calm and slate stays soft.
+# Red is a pass-through: it keeps every original SVG color exactly as shipped.
+ACCENT_PALETTES = {
+    "blue": (212, 0.16, 0.58),
+    "teal": (190, 0.16, 0.55),
+    "green": (130, 0.15, 0.48),
+    "yellow": (45, 0.13, 0.68),
+    "orange": (24, 0.15, 0.64),
+    "red": None,
+    "pink": (333, 0.14, 0.48),
+    "purple": (284, 0.15, 0.47),
+    "slate": (210, 0.10, 0.30),
+}
+RED_HUE = colorsys.rgb_to_hls(224 / 255, 27 / 255, 36 / 255)[0]
+
+HOME = Path.home()
+DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state"))
+WALLPAPER_DIR = DATA_DIR / "backgrounds/gnome-accent-wallpaper"
+AUTOSTART_FILE = CONFIG_DIR / "autostart/gnome-accent-wallpaper.desktop"
+APP_STATE_DIR = STATE_DIR / "gnome-accent-wallpaper"
+STATE_FILE = APP_STATE_DIR / "state.json"
+LOCK_FILE = APP_STATE_DIR / "watcher.lock"
+PID_FILE = APP_STATE_DIR / "watcher.pid"
+LOG_FILE = APP_STATE_DIR / "watcher.log"
+INSTALLED_SCRIPT = HOME / ".local/bin/gnome-accent-wallpaper"
+
+HEX_COLOR = re.compile(r"#([0-9a-fA-F]{6})\b")
+
+
+def log(message: str) -> None:
+    APP_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as stream:
+        stream.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
+
+
+def gsettings_get(schema: str, key: str) -> str:
+    result = subprocess.run(
+        ["gsettings", "get", schema, key],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    value = ast.literal_eval(result.stdout.strip())
+    if not isinstance(value, str):
+        raise RuntimeError(f"gsettings {schema} {key} did not return a string")
+    return value
+
+
+def gsettings_set(schema: str, key: str, value: str) -> None:
+    subprocess.run(["gsettings", "set", schema, key, value], check=True)
+
+
+def uri_path(uri: str) -> Path:
+    parsed = urlparse(uri)
+    if parsed.scheme != "file" or parsed.netloc not in ("", "localhost"):
+        raise RuntimeError(f"Expected a local file wallpaper, got: {uri}")
+    return Path(unquote(parsed.path))
+
+
+def accent_name() -> str:
+    value = gsettings_get(SCHEMA, ACCENT_KEY)
+    if value not in ACCENT_PALETTES:
+        raise RuntimeError(f"Unsupported GNOME accent color: {value}")
+    return value
+
+
+def recolor_svg(svg: str, accent: str) -> str:
+    if accent == "red":
+        return svg
+
+    target_hue, hue_compression, saturation_scale = ACCENT_PALETTES[accent]
+    target_hue /= 360
+
+    def recolor(match: re.Match[str]) -> str:
+        raw = match.group(1)
+        red, green, blue = (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
+        hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+        if saturation == 0:
+            return match.group(0)
+        # Keep each color's relationship to the red palette anchor, but
+        # compress the full rainbow into a small analogous arc around the
+        # selected GNOME accent. This preserves smooth gradients without
+        # complementary-color clashes.
+        source_offset = (hue - RED_HUE + 0.5) % 1 - 0.5
+        hue = (target_hue + source_offset * hue_compression) % 1
+        saturation = min(0.78, saturation * saturation_scale)
+        red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+        rgb = tuple(round(channel * 255) for channel in (red, green, blue))
+        return "#" + "".join(f"{channel:02x}" for channel in rgb)
+
+    return HEX_COLOR.sub(recolor, svg)
+
+
+def load_state() -> dict:
+    if not STATE_FILE.exists():
+        raise RuntimeError("Wallpaper integration is not installed yet; run --install first")
+    return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+
+
+def is_managed_uri(uri: str) -> bool:
+    try:
+        path = uri_path(uri).resolve()
+    except (RuntimeError, OSError):
+        return False
+    return path.parent == WALLPAPER_DIR.resolve() and path.name in {
+        f"blobs-{variant}-{accent}.svg"
+        for variant in ("light", "dark")
+        for accent in ACCENT_PALETTES
+    }
+
+
+def sync_wallpapers(state: dict, accent: str, force: bool = False) -> None:
+    WALLPAPER_DIR.mkdir(parents=True, exist_ok=True)
+    generated: dict[str, str] = {}
+
+    for key, (variant, source_name) in WALLPAPER_KEYS.items():
+        source = Path(state["sources"][key])
+        if not source.is_file():
+            raise RuntimeError(f"GNOME wallpaper source not found: {source}")
+        target = WALLPAPER_DIR / f"blobs-{variant}-{accent}.svg"
+        svg = source.read_text(encoding="utf-8")
+        rendered = recolor_svg(svg, accent)
+        temporary = target.with_suffix(".svg.tmp")
+        temporary.write_text(rendered, encoding="utf-8")
+        os.replace(temporary, target)
+        generated[key] = target.resolve().as_uri()
+
+    for key in WALLPAPER_KEYS:
+        current = gsettings_get(BACKGROUND_SCHEMA, key)
+        if force or is_managed_uri(current):
+            gsettings_set(BACKGROUND_SCHEMA, key, generated[key])
+
+
+def source_from_uri(uri: str, expected_name: str) -> Path:
+    path = uri_path(uri).resolve()
+    if path.name != expected_name or not path.is_file():
+        raise RuntimeError(
+            f"The current wallpaper is not GNOME's {expected_name}; found {path}. "
+            "This script is for the GNOME Blobs wallpaper."
+        )
+    return path
+
+
+def initial_source(uri: str, expected_name: str) -> Path:
+    try:
+        return source_from_uri(uri, expected_name)
+    except RuntimeError:
+        # The setup script historically selected GNOME Blobs as its wallpaper.
+        # Use the packaged source on a first install, while retaining the
+        # current URI in state so --uninstall can restore the user's wallpaper.
+        packaged_source = Path("/usr/share/backgrounds/gnome") / expected_name
+        if packaged_source.is_file():
+            return packaged_source.resolve()
+        raise RuntimeError(
+            f"The current wallpaper is not GNOME's {expected_name}, and the "
+            f"packaged GNOME Blobs source was not found at {packaged_source}."
+        )
+
+
+def desktop_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def write_autostart() -> None:
+    AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AUTOSTART_FILE.write_text(
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=GNOME Accent Wallpaper\n"
+        f"Exec={desktop_quote(str(INSTALLED_SCRIPT))} --watch\n"
+        "X-GNOME-Autostart-enabled=true\n"
+        "NoDisplay=true\n",
+        encoding="utf-8",
+    )
+
+
+def install() -> None:
+    INSTALLED_SCRIPT.parent.mkdir(parents=True, exist_ok=True)
+    source_script = Path(__file__).resolve()
+    if source_script != INSTALLED_SCRIPT.resolve():
+        shutil.copyfile(source_script, INSTALLED_SCRIPT)
+    INSTALLED_SCRIPT.chmod(0o755)
+    # Stop any older watcher after replacing its executable. GNOME may restart
+    # autostart applications through systemd, so a restarted process sees the
+    # new file and can acquire the lock before our explicit start below.
+    stop_watcher()
+
+    APP_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    if STATE_FILE.exists():
+        state = load_state()
+    else:
+        original = {
+            key: gsettings_get(BACKGROUND_SCHEMA, key)
+            for key in WALLPAPER_KEYS
+        }
+        sources = {
+            key: str(initial_source(original[key], source_name))
+            for key, (_, source_name) in WALLPAPER_KEYS.items()
+        }
+        state = {"original": original, "sources": sources}
+        temporary = STATE_FILE.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, STATE_FILE)
+
+    write_autostart()
+    sync_wallpapers(state, accent_name(), force=True)
+    with LOG_FILE.open("a", encoding="utf-8"):
+        subprocess.Popen(
+            [str(INSTALLED_SCRIPT), "--watch"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
+    print(f"Installed. Generated wallpapers are in {WALLPAPER_DIR}")
+    print(f"GNOME accent color is {accent_name()}; the wallpaper will follow it.")
+
+
+def watch() -> None:
+    APP_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_stream = LOCK_FILE.open("a", encoding="utf-8")
+    try:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return
+    PID_FILE.write_text(f"{os.getpid()}\n", encoding="ascii")
+
+    state = load_state()
+    sync_wallpapers(state, accent_name())
+    while True:
+        try:
+            monitor = subprocess.Popen(
+                ["gsettings", "monitor", SCHEMA, ACCENT_KEY],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            assert monitor.stdout is not None
+            for line in monitor.stdout:
+                if "accent-color" not in line:
+                    continue
+                try:
+                    sync_wallpapers(state, accent_name())
+                    log(f"Updated wallpaper for accent {accent_name()}")
+                except Exception as error:  # Keep monitoring after transient errors.
+                    log(f"Update failed: {error}")
+            monitor.wait()
+        except Exception as error:
+            log(f"gsettings monitor failed: {error}")
+        time.sleep(2)
+
+
+def stop_watcher() -> None:
+    script_arg = str(INSTALLED_SCRIPT).encode()
+    targets: set[int] = set()
+    try:
+        pid = int(PID_FILE.read_text(encoding="ascii").strip())
+        command_line = Path(f"/proc/{pid}/cmdline").read_bytes()
+        if script_arg in command_line and b"--watch" in command_line:
+            targets.add(pid)
+    except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+        pass
+
+    # GNOME can launch autostart entries in a systemd user scope, where the
+    # process group is not the watcher PID. Fall back to a precise /proc scan.
+    for process_dir in Path("/proc").iterdir():
+        if not process_dir.name.isdigit():
+            continue
+        try:
+            command_line = (process_dir / "cmdline").read_bytes()
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+        if script_arg in command_line and b"--watch" in command_line:
+            targets.add(int(process_dir.name))
+
+    children: dict[int, list[int]] = {}
+    for process_dir in Path("/proc").iterdir():
+        if not process_dir.name.isdigit():
+            continue
+        try:
+            stat = (process_dir / "stat").read_text(encoding="ascii")
+            fields = stat[stat.rfind(")") + 2 :].split()
+            parent = int(fields[1])
+            children.setdefault(parent, []).append(int(process_dir.name))
+        except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError, IndexError):
+            continue
+
+    descendants: set[int] = set()
+    pending = list(targets)
+    while pending:
+        parent = pending.pop()
+        for child in children.get(parent, []):
+            if child not in descendants and child not in targets:
+                descendants.add(child)
+                pending.append(child)
+
+    for pid in descendants | targets:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    for pid in targets:
+        for _ in range(30):
+            if not Path(f"/proc/{pid}").exists():
+                break
+            time.sleep(0.1)
+
+    try:
+        recorded = int(PID_FILE.read_text(encoding="ascii").strip())
+        if recorded in targets or not Path(f"/proc/{recorded}").exists():
+            PID_FILE.unlink(missing_ok=True)
+    except (FileNotFoundError, ValueError):
+        PID_FILE.unlink(missing_ok=True)
+
+
+def uninstall() -> None:
+    AUTOSTART_FILE.unlink(missing_ok=True)
+    stop_watcher()
+
+    if STATE_FILE.exists():
+        state = load_state()
+        for key in WALLPAPER_KEYS:
+            current = gsettings_get(BACKGROUND_SCHEMA, key)
+            if is_managed_uri(current):
+                gsettings_set(BACKGROUND_SCHEMA, key, state["original"][key])
+
+    shutil.rmtree(WALLPAPER_DIR, ignore_errors=True)
+    for path in (STATE_FILE, LOCK_FILE, PID_FILE, LOG_FILE):
+        path.unlink(missing_ok=True)
+    try:
+        APP_STATE_DIR.rmdir()
+    except OSError:
+        pass
+    INSTALLED_SCRIPT.unlink(missing_ok=True)
+    print("Uninstalled; the original GNOME wallpapers were restored where still in use.")
+
+
+def main() -> int:
+    if len(sys.argv) != 2 or sys.argv[1] not in {"--install", "--watch", "--uninstall"}:
+        print(f"Usage: {Path(sys.argv[0]).name} --install|--watch|--uninstall")
+        return 2
+
+    try:
+        if sys.argv[1] == "--install":
+            install()
+        elif sys.argv[1] == "--watch":
+            watch()
+        else:
+            uninstall()
+        return 0
+    except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as error:
+        print(f"gnome-accent-wallpaper: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

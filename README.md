@@ -2,7 +2,8 @@
 
 Pós-instalação do **Fedora Workstation (GNOME)**: transforma uma instalação limpa
 no meu setup — terminal kitty + zsh com o tema `lambda-vitor`, cursor Bibata,
-extensões do GNOME, atalhos, Firefox e limpeza de apps que não uso.
+extensões do GNOME, papel de parede sincronizado com a cor de destaque, atalhos,
+Firefox e limpeza de apps que não uso.
 
 Testado no Fedora 45 / GNOME 51.
 
@@ -24,6 +25,7 @@ O script pede a senha do `sudo` quando precisa.
 | `./install.sh --yes` | aplica tudo sem perguntar (o plano continua aparecendo) |
 | `./install.sh --list` | lista as etapas |
 | `./install.sh --only kitty,zsh` | roda só essas etapas |
+| `./install.sh --only wallpaper,extensions` | instala o wallpaper dinâmico e os botões personalizados |
 | `./install.sh --skip flatpak` | roda tudo menos essas |
 
 ### Como é cada etapa
@@ -74,8 +76,9 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor vermelha, wallpaper, botões min/max, teclado ABNT2 com Ctrl+Alt como AltGr, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
-| `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto) + extensão local que tira o botão "Mostrar aplicativos" |
+| `gnome` | modo escuro, cor vermelha padrão, botões min/max, teclado ABNT2 com Ctrl+Alt como AltGr, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
+| `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
+| `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
 | `auth` | desativa login por digital e smartcard |
@@ -108,8 +111,11 @@ Fluxo recomendado numa instalação nova:
 - Fundo: o papel de parede do GNOME borrado. O serviço `accent-sync` acompanha
   mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente.
   Para gerar manualmente, rode `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
-- Rolagem no Kitty: 50% mais rápida, com Wayland selecionado automaticamente
-  quando disponível. Abra uma nova janela após aplicar a etapa `kitty` para mudar o servidor gráfico.
+- Rolagem no touchpad do Kitty: multiplicador 4.0. Usa XWayland para manter a
+  barra de título do GNOME com minimizar, maximizar e fechar. Reabra o Kitty após mudar o servidor gráfico.
+- Gestos no GNOME/Wayland: três dedos para cima/baixo ajustam o volume;
+  quatro dedos para os lados trocam as áreas de trabalho, e para cima/baixo
+  abrem/fecham a visão geral e a grade de aplicativos (Touchpad Gesture Customization).
 - Ctrl+Alt funciona como AltGr no ABNT2 usando `config/xkb/types/custom`,
   instalado em `~/.config/xkb/types/custom` pela etapa `gnome` (ou em `$XDG_CONFIG_HOME/xkb/types/custom`, se definido).
 
@@ -119,6 +125,7 @@ Fluxo recomendado numa instalação nova:
 install.sh                    script principal (etapas)
 bin/accent-sync               cor de destaque do GNOME → kitty
 bin/kitty-wallpaper           wallpaper do GNOME → fundo borrado do kitty
+bin/gnome-accent-wallpaper    cor de destaque do GNOME → wallpaper Blobs
 bin/cursor-scalable           converte cursores Xcursor para o formato SVG do GNOME 51
 systemd/accent-sync.service   mantém a cor sincronizada
 config/zsh/                   .zshrc e tema lambda-vitor
@@ -127,6 +134,7 @@ config/firefox/              user.js e userChrome.css
 config/vlc-mimeapps.list      formatos abertos pelo VLC
 config/vscode/                settings.json e lista de extensões
 config/extensions/            configurações das extensões + extensão local
+config/extensions/accent-quick-settings@vitor.local/ seletor de cor e botões do menu rápido
 ```
 
 Logs de cada execução ficam em `~/.cache/assistente-fedora-DATA.log`.
