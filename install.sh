@@ -25,7 +25,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth fan terminal)
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
@@ -41,6 +41,7 @@ declare -A DESC=(
   [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
   [vscode]="configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões"
   [auth]="desativa login por digital (authselect)"
+  [fan]="curva de fan mais agressiva nos perfis quiet e balanced (notebooks ASUS)"
   [terminal]="kitty como terminal padrão; remove o Ptyxis (só se rodando no kitty)"
 )
 
@@ -105,16 +106,17 @@ gnome_table() {
   local K=org.gnome.settings-daemon.plugins.media-keys.custom-keybinding
   cat <<EOF
 org.gnome.desktop.interface|color-scheme|'prefer-dark'|tema escuro
-org.gnome.desktop.interface|accent-color|'red'|cor de destaque
+org.gnome.desktop.interface|accent-color|'purple'|cor de destaque
 org.gnome.desktop.interface|enable-hot-corners|false|cantos ativos (canto superior esquerdo)
 org.gnome.desktop.background|picture-options|'zoom'|ajuste do papel de parede
 org.gnome.desktop.screensaver|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|fundo da tela de bloqueio
 org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões minimizar, maximizar e fechar à direita
+org.gnome.desktop.wm.keybindings|show-desktop|['<Super>d']|atalho Super+D: mostrar ou restaurar a área de trabalho
 org.gnome.desktop.input-sources|sources|[('xkb', 'br')]|layout do teclado (ABNT2)
 org.gnome.desktop.input-sources|xkb-options|@as []|sem opções XKB extras (sem Ctrl+Alt como AltGr)
-org.gnome.desktop.peripherals.keyboard|numlock-state|true|NumLock ligado ao iniciar
+org.gnome.desktop.peripherals.keyboard|numlock-state|false|NumLock ligado ao iniciar
 org.gnome.desktop.peripherals.mouse|accel-profile|'flat'|aceleração do mouse
-org.gnome.desktop.peripherals.mouse|speed|-0.13|velocidade do mouse
+org.gnome.desktop.peripherals.mouse|speed|-0.79487179487179493|velocidade do mouse
 org.gnome.desktop.peripherals.touchpad|two-finger-scrolling-enabled|true|rolagem com dois dedos
 org.gnome.desktop.peripherals.touchpad|tap-and-drag|false|arrastar com dois toques no touchpad
 org.gnome.desktop.privacy|remember-recent-files|false|histórico de arquivos recentes (some "Recentes" do Nautilus)
@@ -289,7 +291,7 @@ kitty_conf_rendered() {  # kitty.conf do repositório com o $HOME desta máquina
 
 ext_settings_current() {  # configurações atuais das extensões (mesmo filtro do repositório)
   dconf dump /org/gnome/shell/extensions/ 2>/dev/null \
-    | grep -vE '^(last-version|last-version-name-installed|next-history-clear|settings-version|overridden-settings)='
+    | grep -vE '^(last-version|last-version-name-installed|next-history-clear|settings-version|overridden-settings|queued-pref-category)='
 }
 
 # VS Code: Flatpak (padrão deste setup) ou instalação nativa
@@ -403,14 +405,17 @@ plan_tools() {
 }
 
 plan_kitty() {
-  local conf; conf=$(kitty_conf_rendered)
+  local conf wallpaper_conf wallpaper_image
+  conf=$(kitty_conf_rendered)
   plan_file "$conf" "$HOME/.config/kitty/kitty.conf" "fonte, cores, fundo, abas"
   plan_file "$REPO/bin/accent-sync" "$HOME/.local/bin/accent-sync" "cor de destaque do GNOME → kitty"
   plan_file "$REPO/bin/kitty-wallpaper" "$HOME/.local/bin/kitty-wallpaper" "wallpaper → fundo borrado"
   plan_file "$REPO/systemd/accent-sync.service" "$HOME/.config/systemd/user/accent-sync.service" "serviço"
   systemctl --user is-enabled accent-sync.service &>/dev/null || plan_add "ativar o serviço accent-sync (kitty acompanha a cor de destaque)"
   systemctl --user is-active accent-sync.service &>/dev/null || plan_add "iniciar o serviço accent-sync (wallpaper e cor de destaque)"
-  [[ -f $HOME/.config/kitty/wallpaper-blur.png ]] || plan_add "gerar o fundo do terminal a partir do papel de parede atual"
+  wallpaper_conf="$HOME/.config/kitty/wallpaper.conf"
+  wallpaper_image=$(sed -n 's/^background_image //p' "$wallpaper_conf" 2>/dev/null | head -1)
+  [[ -n $wallpaper_image && -s $wallpaper_image ]] || plan_add "gerar o fundo dinâmico do terminal a partir do wallpaper atual"
   return 0
 }
 
@@ -522,6 +527,22 @@ plan_vscode() {
 plan_auth() {
   grep -q with-fingerprint <<<"$(authselect current 2>/dev/null)" && plan_chg "login por digital: ${c_dim}ligado${c_reset} → ${c_cyn}desligado${c_reset} ${c_dim}(authselect, usa sudo)${c_reset}"
   plan_gs auth_table
+}
+
+asus_fan_hwmon() {  # hwmon da curva de fan customizável do asus-wmi (vazio se não existir)
+  local d
+  for d in /sys/class/hwmon/hwmon*; do
+    [[ $(cat "$d/name" 2>/dev/null) == asus_custom_fan_curve ]] && { echo "$d"; return 0; }
+  done
+  return 0
+}
+
+plan_fan() {
+  [[ -n $(asus_fan_hwmon) ]] || { plan_note "sem curva de fan customizável (só notebooks ASUS com asus-wmi)"; return 0; }
+  plan_file "$REPO/bin/asus-fan-curve" /usr/local/bin/asus-fan-curve "aplica a curva; usa sudo"
+  plan_file "$REPO/systemd/asus-fan-curve.service" /etc/systemd/system/asus-fan-curve.service "serviço do sistema"
+  systemctl is-enabled asus-fan-curve.service &>/dev/null || plan_add "ativar o serviço asus-fan-curve (reaplica a curva quando o perfil muda)"
+  return 0
 }
 
 plan_terminal() {
@@ -843,6 +864,16 @@ step_auth() {
     sudo authselect disable-feature with-fingerprint && sudo authselect apply-changes && ok "login por digital desativado"
   fi
   apply_gs auth_table
+}
+
+step_fan() {
+  [[ -n $(asus_fan_hwmon) ]] || { warn "sem curva de fan customizável; nada a fazer"; return 0; }
+  sudo install -m 755 "$REPO/bin/asus-fan-curve" /usr/local/bin/asus-fan-curve
+  sudo install -m 644 "$REPO/systemd/asus-fan-curve.service" /etc/systemd/system/asus-fan-curve.service
+  sudo restorecon /usr/local/bin/asus-fan-curve /etc/systemd/system/asus-fan-curve.service 2>/dev/null || true
+  sudo systemctl daemon-reload
+  sudo systemctl enable asus-fan-curve.service >/dev/null 2>&1
+  sudo systemctl restart asus-fan-curve.service && ok "serviço asus-fan-curve ativo (veja com: asus-fan-curve --status)"
 }
 
 step_terminal() {

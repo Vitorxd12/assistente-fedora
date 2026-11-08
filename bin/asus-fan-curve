@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Curva de fan mais agressiva para notebooks ASUS (asus-wmi / asus_custom_fan_curve).
+#
+# De fábrica, o perfil "quiet" (usado na bateria) deixa os fans parados até ~65 °C
+# e abaixo de 20% até ~73 °C. Esta curva liga os fans mais cedo e sobe mais rápido.
+# O firmware volta à curva de fábrica sempre que o perfil muda (tomada/bateria,
+# perfil de energia do GNOME, suspensão), por isso o modo --watch reaplica.
+#
+#   asus-fan-curve           aplica uma vez (se o perfil atual for gerenciado)
+#   asus-fan-curve --watch   aplica e fica vigiando (usado pelo serviço systemd)
+#   asus-fan-curve --status  mostra perfil, curva atual e rotação dos fans
+#
+# Precisa rodar como root.
+
+set -u
+
+# Perfis em que a curva é aplicada. "performance" fica com a curva de fábrica,
+# que já é agressiva.
+PROFILES="quiet balanced"
+
+# 8 pontos "temperatura °C:pwm (0–255)". Temperatura crescente, pwm não decrescente.
+CPU_CURVE="45:40 55:65 62:90 68:115 74:145 80:180 86:215 92:255"
+GPU_CURVE="45:35 55:60 62:85 68:110 74:140 80:175 86:210 92:255"
+
+find_hwmon() {
+  local d
+  for d in /sys/class/hwmon/hwmon*; do
+    [[ $(cat "$d/name" 2>/dev/null) == asus_custom_fan_curve ]] && { echo "$d"; return 0; }
+  done
+  return 1
+}
+
+profile() { cat /sys/firmware/acpi/platform_profile 2>/dev/null; }
+
+managed() { [[ " $PROFILES " == *" $(profile) "* ]]; }
+
+write_curve() {  # write_curve HWMON N "CURVA"
+  local d=$1 n=$2 i=1 pt
+  for pt in $3; do
+    echo "${pt%%:*}" > "$d/pwm${n}_auto_point${i}_temp" || return 1
+    echo "${pt##*:}" > "$d/pwm${n}_auto_point${i}_pwm"  || return 1
+    i=$((i+1))
+  done
+  echo 1 > "$d/pwm${n}_enable"
+}
+
+needs_apply() {  # o firmware marca 2 (curva de fábrica) depois de trocar de perfil
+  local d=$1
+  [[ $(cat "$d/pwm1_enable") != 1 || $(cat "$d/pwm2_enable") != 1 ]]
+}
+
+apply() {
+  local d=$1
+  managed || return 0
+  needs_apply "$d" || return 0
+  if write_curve "$d" 1 "$CPU_CURVE" && write_curve "$d" 2 "$GPU_CURVE"; then
+    echo "curva aplicada (perfil $(profile))"
+  else
+    echo "falha ao aplicar a curva (perfil $(profile))" >&2
+    return 1
+  fi
+}
+
+status() {
+  local d=$1 n i f
+  echo "perfil: $(profile)  (gerenciados: $PROFILES)"
+  for n in 1 2; do
+    printf 'pwm%s enable=%s:' "$n" "$(cat "$d/pwm${n}_enable")"
+    for i in 1 2 3 4 5 6 7 8; do
+      printf ' %s°C:%s' "$(cat "$d/pwm${n}_auto_point${i}_temp")" "$(cat "$d/pwm${n}_auto_point${i}_pwm")"
+    done
+    echo
+  done
+  for f in /sys/class/hwmon/hwmon*/fan*_input; do
+    [[ -f ${f%_input}_label ]] && echo "$(cat "${f%_input}_label"): $(cat "$f") RPM"
+  done
+}
+
+hw=$(find_hwmon) || { echo "asus_custom_fan_curve não encontrado (driver asus-wmi)" >&2; exit 1; }
+
+case ${1:-} in
+  --status) status "$hw" ;;
+  --watch)
+    [[ $EUID -eq 0 ]] || { echo "rode como root" >&2; exit 1; }
+    while true; do
+      apply "$hw"
+      sleep 3
+    done ;;
+  "")
+    [[ $EUID -eq 0 ]] || { echo "rode como root" >&2; exit 1; }
+    apply "$hw" ;;
+  *) sed -n '9,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

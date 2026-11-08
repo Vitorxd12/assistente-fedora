@@ -76,12 +76,13 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor vermelha padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
+| `gnome` | modo escuro, cor roxa padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
 | `auth` | desativa login por digital e smartcard |
+| `fan` | notebooks ASUS: curva de fan mais agressiva nos perfis quiet (bateria) e balanced; o serviço `asus-fan-curve` reaplica quando o perfil muda. `asus-fan-curve --status` mostra a curva e a rotação |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
 
 ## Atalhos configurados
@@ -90,6 +91,7 @@ Fluxo recomendado numa instalação nova:
 |---|---|
 | Super+T | abre o kitty |
 | Super+E | abre o Nautilus |
+| Super+D | mostra a área de trabalho; novamente restaura as janelas |
 | Super+V | histórico da área de transferência |
 | Super+M | notificações |
 
@@ -109,10 +111,15 @@ Fluxo recomendado numa instalação nova:
   forçar o original, use `\comando` (ex.: `\ls`). `cd`/`z`, `grep` e `find`
   continuam os originais.
 - Fundo: o papel de parede do GNOME borrado. O serviço `accent-sync` acompanha
-  mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente.
+  mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente;
+  cada atualização cria um novo arquivo de fundo para o Kitty recarregá-lo.
   Para gerar manualmente, rode `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
-- Rolagem no touchpad do Kitty: multiplicador 4.0. Usa XWayland para manter a
-  barra de título do GNOME com minimizar, maximizar e fechar. Reabra o Kitty após mudar o servidor gráfico.
+- Rolagem do Kitty: roda um clique = três linhas (`wheel_scroll_multiplier 3.0`);
+  touchpad pixel a pixel, multiplicador 2.0 e inércia curta (`momentum_scroll 0.85`).
+  Usa Wayland nativo: no XWayland o touchpad chega como roda de mouse e esses ajustes
+  eram ignorados. A barra de título passa a ser a do próprio Kitty. Reabra o Kitty após
+  mudar o servidor gráfico. Dentro do Codex quem manda é `tui.mouse_scroll_speed`
+  em `~/.codex/config.toml`.
 - Gestos no GNOME/Wayland: três dedos para cima/baixo ajustam o volume;
   quatro dedos para os lados trocam as áreas de trabalho, e para cima/baixo
   abrem/fecham a visão geral e a grade de aplicativos (Touchpad Gesture Customization).
