@@ -100,16 +100,6 @@ GIT_CONFIG=(
 
 # ── configurações do GNOME (tabela: schema[:caminho] | chave | valor | descrição)
 # A mesma tabela serve para mostrar o plano (valor atual → novo) e para aplicar.
-keyboard_options() {
-  python3 - <<'PY'
-from gi.repository import Gio
-s = Gio.Settings.new("org.gnome.desktop.input-sources")
-options = s.get_strv("xkb-options")
-if "custom:types" not in options:
-    options.append("custom:types")
-print(repr(options))
-PY
-}
 gnome_table() {
   local P=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings
   local K=org.gnome.settings-daemon.plugins.media-keys.custom-keybinding
@@ -121,7 +111,7 @@ org.gnome.desktop.background|picture-options|'zoom'|ajuste do papel de parede
 org.gnome.desktop.screensaver|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|fundo da tela de bloqueio
 org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões minimizar, maximizar e fechar à direita
 org.gnome.desktop.input-sources|sources|[('xkb', 'br')]|layout do teclado (ABNT2)
-org.gnome.desktop.input-sources|xkb-options|$(keyboard_options)|Ctrl+Alt como AltGr
+org.gnome.desktop.input-sources|xkb-options|@as []|sem opções XKB extras (sem Ctrl+Alt como AltGr)
 org.gnome.desktop.peripherals.keyboard|numlock-state|true|NumLock ligado ao iniciar
 org.gnome.desktop.peripherals.mouse|accel-profile|'flat'|aceleração do mouse
 org.gnome.desktop.peripherals.mouse|speed|-0.13|velocidade do mouse
@@ -459,7 +449,6 @@ plan_wallpaper() {
 }
 
 plan_gnome() {
-  plan_file "$REPO/config/xkb/types/custom" "${XDG_CONFIG_HOME:-$HOME/.config}/xkb/types/custom" "Ctrl+Alt como AltGr (XKB)"
   plan_gs gnome_table
   local d
   [[ -d $HOME/repos ]] || plan_add "criar a pasta ~/repos"
@@ -726,7 +715,6 @@ step_kitty() {
 }
 
 step_gnome() {
-  put "$REPO/config/xkb/types/custom" "${XDG_CONFIG_HOME:-$HOME/.config}/xkb/types/custom"
   apply_gs gnome_table
   mkdir -p "$HOME/repos"
   local bm="$HOME/.config/gtk-3.0/bookmarks" d

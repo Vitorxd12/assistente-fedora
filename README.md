@@ -76,7 +76,7 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor vermelha padrão, botões min/max, teclado ABNT2 com Ctrl+Alt como AltGr, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
+| `gnome` | modo escuro, cor vermelha padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads), perfil de energia Desempenho |
 | `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
@@ -116,8 +116,6 @@ Fluxo recomendado numa instalação nova:
 - Gestos no GNOME/Wayland: três dedos para cima/baixo ajustam o volume;
   quatro dedos para os lados trocam as áreas de trabalho, e para cima/baixo
   abrem/fecham a visão geral e a grade de aplicativos (Touchpad Gesture Customization).
-- Ctrl+Alt funciona como AltGr no ABNT2 usando `config/xkb/types/custom`,
-  instalado em `~/.config/xkb/types/custom` pela etapa `gnome` (ou em `$XDG_CONFIG_HOME/xkb/types/custom`, se definido).
 
 ## Estrutura
 
