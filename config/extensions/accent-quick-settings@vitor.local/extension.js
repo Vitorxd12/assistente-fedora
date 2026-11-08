@@ -98,7 +98,8 @@ export default class AccentQuickSettingsExtension extends Extension {
 
         // GNOME 51 exposes these built-in tiles in the Quick Settings grid.
         // Keep their actors available for GNOME while hiding their grid entries.
-        for (const item of quickSettings._grid.get_children()) {
+        const grid = quickSettings.menu?._grid;
+        for (const item of grid?.get_children() ?? []) {
             if (!HIDDEN_ICONS.has(item.iconName))
                 continue;
 

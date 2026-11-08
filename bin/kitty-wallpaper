@@ -5,9 +5,11 @@
 set -euo pipefail
 
 BLUR="${1:-18}"
-OUT="$HOME/.config/kitty/wallpaper-blur.png"
+CONFIG_DIR="$HOME/.config/kitty"
+mkdir -p "$CONFIG_DIR"
+OUT=$(mktemp "$CONFIG_DIR/wallpaper-blur.XXXXXX" --suffix=.png)
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; [[ -z ${OUT:-} ]] || rm -f "$OUT"' EXIT
 
 scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo "'default'")
 if [[ $scheme == "'prefer-dark'" ]]; then
@@ -51,9 +53,15 @@ EOF
     ;;
 esac
 
-mkdir -p "$(dirname "$OUT")"
 # reduz, borra e amplia de novo: blur forte e rápido
 magick "$TMP/full.png" -resize 25% -blur "0x$BLUR" -resize 400% "$OUT"
+CONF_TMP=$(mktemp "$CONFIG_DIR/wallpaper.conf.XXXXXX")
+printf 'background_image %s\n' "$OUT" > "$CONF_TMP"
+mv -f "$CONF_TMP" "$CONFIG_DIR/wallpaper.conf"
 echo "kitty-wallpaper: gerado $OUT"
+
+# Mantém as versões recentes para as janelas terminarem de recarregar a imagem.
+find "$CONFIG_DIR" -maxdepth 1 -type f -name 'wallpaper-blur.*.png' -mtime +7 -delete
+OUT=""
 
 pkill -USR1 -x kitty 2>/dev/null || true

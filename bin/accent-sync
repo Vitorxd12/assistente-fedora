@@ -21,6 +21,8 @@ cursor $hex
 selection_background $hex
 selection_foreground $fg
 CONF
+  # Regera também o fundo para manter sua atualização sincronizada com o accent.
+  "$HOME/.local/bin/kitty-wallpaper" || echo "accent-sync: não consegui atualizar o wallpaper do Kitty" >&2
   pkill -USR1 -x kitty 2>/dev/null || true   # kitty recarrega a config
 }
 apply
