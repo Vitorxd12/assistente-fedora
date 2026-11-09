@@ -55,8 +55,8 @@ class Hardware:
 
     def target(self, key, value):
         if key.startswith('screen:'):
-            # Never brighten an already dim screen; retain at least 4%.
-            return min(value, max(1, round(self.limits[key] * 0.40)))
+            # Relative dimming, with a 4% floor; never brighten a dim screen.
+            return min(value, max(1, round(self.limits[key] * 0.04), round(value * 0.70)))
         if key == 'idle-delay':
             return min(value, 300) if value else 300
         return 1 if key == 'intel-no-turbo' else 0
@@ -80,7 +80,9 @@ def apply(hw, state, battery, persist):
             if key not in snapshots:
                 snapshots[key] = original
                 persist(state)
-            target = hw.target(key, original)
+            target = hw.target(key, snapshots[key])
+            if key.startswith('screen:'):
+                target = min(original, target)
             if original != target:
                 hw.write(key, target)
         state['on_battery'] = True
@@ -109,12 +111,10 @@ def on_battery():
     return value.get_boolean()
 
 
-def maximum_ac(hw, state, persist):
+def performance_ac(hw, state, persist):
     originals = state.setdefault('original_ac', {})
     for key, value in hw.read().items():
-        if key.startswith('screen:'):
-            target = hw.limits[key]
-        elif key in ('intel-no-turbo', 'cpu-boost'):
+        if key in ('intel-no-turbo', 'cpu-boost'):
             target = 0 if key == 'intel-no-turbo' else 1
         else:
             continue
@@ -206,7 +206,7 @@ def main():
             save_json(backup_path, backup)
             config.update(want)
             save_json(config_path, config)
-            print('G-Helper: Silencioso na bateria; Turbo e brilho máximo na tomada; hooks configurados.')
+            print('G-Helper: Silencioso na bateria; Turbo na tomada; brilho da tela relativo.')
         elif args.restore:
             if ghelper_running():
                 raise RuntimeError('feche o G-Helper antes de restaurar as preferências')
@@ -229,9 +229,9 @@ def main():
             hw = Hardware()
             apply(hw, state, battery, persist)
             if not battery:
-                maximum_ac(hw, state, persist)
-            print('battery-saver: ' + ('bateria: brilho até 40%, sem turbo, tela inativa em até 5min'
-                                      if battery else 'tomada: brilho máximo e turbo habilitado'))
+                performance_ac(hw, state, persist)
+            print('battery-saver: ' + ('bateria: brilho reduzido em cerca de 30%, sem turbo, tela inativa em até 5min'
+                                      if battery else 'tomada: brilho anterior e turbo habilitado'))
 
 
 if __name__ == '__main__':

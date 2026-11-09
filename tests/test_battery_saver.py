@@ -37,7 +37,7 @@ class SaverTests(unittest.TestCase):
         hw, state = Fake(), {}
         original = hw.read()
         self.run_saver(hw, state, True)
-        self.assertEqual(hw.read(), {'screen:panel': 40, 'intel-no-turbo': 1, 'idle-delay': 300})
+        self.assertEqual(hw.read(), {'screen:panel': 46, 'intel-no-turbo': 1, 'idle-delay': 300})
         self.run_saver(hw, state, False)
         self.assertEqual(hw.read(), original)
         self.assertEqual(state['restore'], {})
@@ -46,11 +46,12 @@ class SaverTests(unittest.TestCase):
         hw, state = Fake(), {}
         self.run_saver(hw, state, True)
         self.run_saver(hw, state, True)
+        self.assertEqual(hw.values['screen:panel'], 46)
         self.run_saver(hw, state, False)
         self.assertEqual(hw.values['screen:panel'], 65)
 
     def test_does_not_brighten_or_enable_turbo(self):
-        hw, state = Fake(screen=10, boost=1, idle=120), {}
+        hw, state = Fake(screen=4, boost=1, idle=120), {}
         self.run_saver(hw, state, True)
         self.assertEqual(hw.writes, [])
         self.run_saver(hw, state, False)
@@ -96,21 +97,22 @@ class SaverTests(unittest.TestCase):
 
     def test_maximum_ac_and_uninstall_restore(self):
         hw, state = Fake(screen=65, boost=1), {}
-        module.maximum_ac(hw, state, lambda value: None)
-        self.assertEqual(hw.values['screen:panel'], 100)
+        module.performance_ac(hw, state, lambda value: None)
+        self.assertEqual(hw.values['screen:panel'], 65)
         self.assertEqual(hw.values['intel-no-turbo'], 0)
         self.run_saver(hw, state, True)
         self.run_saver(hw, state, False)
-        module.maximum_ac(hw, state, lambda value: None)
+        module.performance_ac(hw, state, lambda value: None)
         module.restore_ac_original(hw, state, lambda value: None)
         self.assertEqual(hw.values['screen:panel'], 65)
         self.assertEqual(hw.values['intel-no-turbo'], 1)
 
     def test_maximum_ac_repeated_does_not_lose_backup(self):
-        hw, state = Fake(), {}
-        module.maximum_ac(hw, state, lambda value: None)
-        module.maximum_ac(hw, state, lambda value: None)
-        self.assertEqual(state['original_ac']['screen:panel'], 65)
+        hw, state = Fake(boost=1), {}
+        module.performance_ac(hw, state, lambda value: None)
+        module.performance_ac(hw, state, lambda value: None)
+        self.assertNotIn('screen:panel', state['original_ac'])
+        self.assertEqual(state['original_ac']['intel-no-turbo'], 1)
 
 
 if __name__ == '__main__':

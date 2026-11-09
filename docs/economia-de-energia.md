@@ -12,7 +12,7 @@ de forçar Desempenho, para não contradizer os perfis automáticos.
 | Controle | Bateria | Tomada |
 |---|---|---|
 | G-Helper/firmware | Silencioso | Turbo nativo |
-| Tela | limita brilho a 40%, sem aumentar brilho já menor | 100% de brilho |
+| Tela | reduz cerca de 30% do brilho salvo, com piso de 4% | restaura o brilho anterior à bateria |
 | CPU Boost | desliga temporariamente | habilitado |
 | Inatividade | apaga a tela após até 5 minutos | restaura a preferência anterior |
 | Teclado | no máximo nível 1; mantém apagado se já estava apagado | nível máximo suportado |
@@ -78,11 +78,15 @@ baixo, turbo já desligado, início em AC, dispositivo ausente, falha de
 permissão e preservação de comandos existentes. Sintaxe bash e git diff
 --check passaram. O --dry-run reconhece a etapa já aplicada.
 
-No hardware em bateria: perfil quiet, CPU no_turbo=1, tela 60 Hz, brilho 30%
-(já estava abaixo do limite de 40%) e teclado no nível 1. O retorno físico
+No hardware em bateria: perfil quiet, CPU no_turbo=1, tela 60 Hz, brilho relativo ao valor salvo (sem reduções acumuladas) e teclado no nível 1. O retorno físico
 à tomada ainda não foi testado: o usuário não podia conectar o carregador.
 Snapshots anteriores preservados para reversão da automação. A política AC
-foi atualizada a pedido do usuário: Turbo, CPU Boost e brilho máximo.
-Os dois testes adicionais cobrem máximo na tomada e reversão sem perder backup.
+foi atualizada a pedido do usuário: Turbo, CPU Boost e teclado no máximo; a tela
+restaura o brilho anterior, sem forçar 100%.
+Os dois testes adicionais cobrem desempenho na tomada e reversão sem perder backup.
 Arquivos config/system/rtw88.conf e wifi-powersave-off.conf intactos. GPU em
 Eco (MUX=1, dgpu_disable=1); sem automação de GPU ou novo serviço residente.
+
+Exemplo de brilho: 60% na tomada → 42% na bateria → 60% ao reconectar.
+Hooks repetidos não escurecem a tela progressivamente. Uma redução manual
+adicional na bateria é respeitada até reconectar.
