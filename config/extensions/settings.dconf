@@ -113,14 +113,3 @@ pinch-4-finger-gesture='NONE'
 vertical-swipe-3-fingers-gesture='VOLUME_CONTROL'
 vertical-swipe-4-fingers-gesture='OVERVIEW_NAVIGATION'
 volume-control-speed=1.0
-
-[tuf-control]
-backend='real'
-color-intensity=1.0
-color-mode='gnome'
-custom-color='#e62d42'
-effect='static'
-last-brightness=1
-lighting-enabled=true
-restore-lighting=true
-saturation=1.0
