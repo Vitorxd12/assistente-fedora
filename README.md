@@ -82,7 +82,6 @@ Fluxo recomendado numa instalação nova:
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
 | `auth` | desativa login por digital e smartcard |
-| `fan` | notebooks ASUS: curva de fan mais agressiva nos perfis quiet (bateria) e balanced; o serviço `asus-fan-curve` reaplica quando o perfil muda. `asus-fan-curve --status` mostra a curva e a rotação |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
 
 ## Atalhos configurados

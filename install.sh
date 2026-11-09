@@ -25,7 +25,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth fan terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth terminal)
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
@@ -41,7 +41,6 @@ declare -A DESC=(
   [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
   [vscode]="configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões"
   [auth]="desativa login por digital (authselect)"
-  [fan]="curva de fan mais agressiva nos perfis quiet e balanced (notebooks ASUS)"
   [terminal]="kitty como terminal padrão; remove o Ptyxis (só se rodando no kitty)"
 )
 
@@ -529,22 +528,6 @@ plan_auth() {
   plan_gs auth_table
 }
 
-asus_fan_hwmon() {  # hwmon da curva de fan customizável do asus-wmi (vazio se não existir)
-  local d
-  for d in /sys/class/hwmon/hwmon*; do
-    [[ $(cat "$d/name" 2>/dev/null) == asus_custom_fan_curve ]] && { echo "$d"; return 0; }
-  done
-  return 0
-}
-
-plan_fan() {
-  [[ -n $(asus_fan_hwmon) ]] || { plan_note "sem curva de fan customizável (só notebooks ASUS com asus-wmi)"; return 0; }
-  plan_file "$REPO/bin/asus-fan-curve" /usr/local/bin/asus-fan-curve "aplica a curva; usa sudo"
-  plan_file "$REPO/systemd/asus-fan-curve.service" /etc/systemd/system/asus-fan-curve.service "serviço do sistema"
-  systemctl is-enabled asus-fan-curve.service &>/dev/null || plan_add "ativar o serviço asus-fan-curve (reaplica a curva quando o perfil muda)"
-  return 0
-}
-
 plan_terminal() {
   local f
   for f in xdg-terminals.list gnome-xdg-terminals.list; do
@@ -864,16 +847,6 @@ step_auth() {
     sudo authselect disable-feature with-fingerprint && sudo authselect apply-changes && ok "login por digital desativado"
   fi
   apply_gs auth_table
-}
-
-step_fan() {
-  [[ -n $(asus_fan_hwmon) ]] || { warn "sem curva de fan customizável; nada a fazer"; return 0; }
-  sudo install -m 755 "$REPO/bin/asus-fan-curve" /usr/local/bin/asus-fan-curve
-  sudo install -m 644 "$REPO/systemd/asus-fan-curve.service" /etc/systemd/system/asus-fan-curve.service
-  sudo restorecon /usr/local/bin/asus-fan-curve /etc/systemd/system/asus-fan-curve.service 2>/dev/null || true
-  sudo systemctl daemon-reload
-  sudo systemctl enable asus-fan-curve.service >/dev/null 2>&1
-  sudo systemctl restart asus-fan-curve.service && ok "serviço asus-fan-curve ativo (veja com: asus-fan-curve --status)"
 }
 
 step_terminal() {
