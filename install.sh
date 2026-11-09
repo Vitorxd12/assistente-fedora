@@ -36,7 +36,7 @@ declare -A DESC=(
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; nome personalizado no prompt"
   [tools]="ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git com delta"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
-  [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
+  [gnome]="tema escuro, atalhos, teclado/touchpad, privacidade, dock"
   [wallpaper]="papel de parede Blobs do GNOME acompanha a cor de destaque"
   [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor, gestos do touchpad e cor de destaque nas Configurações Rápidas"
   [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
@@ -116,8 +116,6 @@ org.gnome.desktop.wm.keybindings|show-desktop|['<Super>d']|atalho Super+D: mostr
 org.gnome.desktop.input-sources|sources|[('xkb', 'br')]|layout do teclado (ABNT2)
 org.gnome.desktop.input-sources|xkb-options|@as []|sem opções XKB extras (sem Ctrl+Alt como AltGr)
 org.gnome.desktop.peripherals.keyboard|numlock-state|false|NumLock ligado ao iniciar
-org.gnome.desktop.peripherals.mouse|accel-profile|'flat'|aceleração do mouse
-org.gnome.desktop.peripherals.mouse|speed|-0.79487179487179493|velocidade do mouse
 org.gnome.desktop.peripherals.touchpad|two-finger-scrolling-enabled|true|rolagem com dois dedos
 org.gnome.desktop.peripherals.touchpad|tap-and-drag|false|arrastar com dois toques no touchpad
 org.gnome.desktop.privacy|remember-recent-files|false|histórico de arquivos recentes (some "Recentes" do Nautilus)

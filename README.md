@@ -34,7 +34,7 @@ Antes de mexer em qualquer coisa, o script calcula o que realmente vai mudar
 **nesta máquina** e pergunta:
 
 ```
-╭─ gnome — tema escuro, atalhos, teclado/mouse, privacidade, dock
+╭─ gnome — tema escuro, atalhos, teclado/touchpad, privacidade, dock
 │  ~ tema escuro: 'default' → 'prefer-dark'
 │  ~ cor de destaque: 'blue' → 'red'
 │  ~ apps fixados na dock (dock vazia): ['org.mozilla.firefox.desktop', …] → @as []
@@ -76,10 +76,10 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor roxa padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, mouse sem aceleração, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads); preserva o perfil de energia |
+| `gnome` | modo escuro, cor roxa padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads); preserva o perfil de energia |
 | `energy` | com G-Helper já configurado: Silencioso na bateria, tela cerca de 30% mais escura, turbo temporariamente desligado, tela inativa em até 5 minutos, teclado em nível baixo e atualização automática; na tomada usa Turbo, CPU Boost, brilho anterior da tela e teclado no máximo e restaura a inatividade. Não altera GPU, rede, Bluetooth, fans ou TuneD |
 | `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
-| `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
+| `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus, com escurecimento leve; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
 | `bluetooth` | só em placas Realtek rtw88 (ex.: RTL8821CE, Wi-Fi e Bluetooth no mesmo chip): desliga a economia de energia profunda/ASPM do driver e o power save do Wi-Fi, que travam o firmware e fazem o fone Bluetooth (LDAC) cortar. Vale após reiniciar |
@@ -118,12 +118,6 @@ Fluxo recomendado numa instalação nova:
   mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente;
   cada atualização cria um novo arquivo de fundo para o Kitty recarregá-lo.
   Para gerar manualmente, rode `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
-- Rolagem do Kitty: roda um clique = três linhas e meia (`wheel_scroll_multiplier 3.5`);
-  touchpad pixel a pixel, multiplicador 2.0 e inércia curta (`momentum_scroll 0.85`).
-  Usa Wayland nativo: no XWayland o touchpad chega como roda de mouse e esses ajustes
-  eram ignorados. A barra de título passa a ser a do próprio Kitty. Reabra o Kitty após
-  mudar o servidor gráfico. Dentro do Codex quem manda é `tui.mouse_scroll_speed`
-  em `~/.codex/config.toml`.
 - Gestos no GNOME/Wayland: três dedos para cima/baixo ajustam o volume;
   quatro dedos para os lados trocam as áreas de trabalho, e para cima/baixo
   abrem/fecham a visão geral e a grade de aplicativos (Touchpad Gesture Customization).
