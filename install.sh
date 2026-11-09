@@ -116,7 +116,6 @@ org.gnome.desktop.wm.keybindings|show-desktop|['<Super>d']|atalho Super+D: mostr
 org.gnome.desktop.input-sources|sources|[('xkb', 'br')]|layout do teclado (ABNT2)
 org.gnome.desktop.input-sources|xkb-options|@as []|sem opções XKB extras (sem Ctrl+Alt como AltGr)
 org.gnome.desktop.peripherals.keyboard|numlock-state|false|NumLock ligado ao iniciar
-org.gnome.desktop.peripherals.touchpad|two-finger-scrolling-enabled|true|rolagem com dois dedos
 org.gnome.desktop.peripherals.touchpad|tap-and-drag|false|arrastar com dois toques no touchpad
 org.gnome.desktop.privacy|remember-recent-files|false|histórico de arquivos recentes (some "Recentes" do Nautilus)
 org.gnome.desktop.privacy|report-technical-problems|false|envio de relatórios de problemas
