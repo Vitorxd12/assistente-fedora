@@ -78,8 +78,10 @@ baixo, turbo já desligado, início em AC, dispositivo ausente, falha de
 permissão e preservação de comandos existentes. Sintaxe bash e git diff
 --check passaram. O --dry-run reconhece a etapa já aplicada.
 
-No hardware em bateria: perfil quiet, CPU no_turbo=1, tela 60 Hz, brilho relativo ao valor salvo (sem reduções acumuladas) e teclado no nível 1. O retorno físico
-à tomada ainda não foi testado: o usuário não podia conectar o carregador.
+No hardware em bateria: perfil quiet, CPU no_turbo=1, tela 60 Hz, brilho relativo ao valor salvo (sem reduções acumuladas) e teclado no nível 1. O teste físico foi concluído às 16:04:49–16:04:55: retirada do carregador
+aplicou Silencioso/quiet, 60 Hz e teclado nível 1; reconexão aplicou
+Turbo/performance, 144 Hz e teclado nível 3. O auxiliar executou nos dois
+sentidos sem erro; estado final CPU no_turbo=0 e brilho restaurado a 8%.
 Snapshots anteriores preservados para reversão da automação. A política AC
 foi atualizada a pedido do usuário: Turbo, CPU Boost e teclado no máximo; a tela
 restaura o brilho anterior, sem forçar 100%.
@@ -90,3 +92,14 @@ Eco (MUX=1, dgpu_disable=1); sem automação de GPU ou novo serviço residente.
 Exemplo de brilho: 60% na tomada → 42% na bateria → 60% ao reconectar.
 Hooks repetidos não escurecem a tela progressivamente. Uma redução manual
 adicional na bateria é respeitada até reconectar.
+
+### Recuperação do processo nesta sessão
+
+No primeiro teste, G-Helper não estava rodando; por isso não observava AC/DC.
+Não foi encontrado coredump recente que determinasse a causa do encerramento.
+Foi reaberto numa unidade transitória de usuário ghelper-session.service,
+fora do grupo do terminal, com Restart=on-failure. Não foi instalado arquivo
+permanente de serviço; nos próximos logins vale o autostart nativo.
+Após parar o processo de forma sincronizada, performance_0=2, performance_1=1
+e o modo atual AC=1 foram confirmados antes de reabrir. A troca física
+funcionou sem reinícios do processo. G-Helper continua necessário em execução.
