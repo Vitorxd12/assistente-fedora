@@ -81,6 +81,7 @@ Fluxo recomendado numa instalação nova:
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
 | `vscode` | configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões (`config/vscode/extensions.txt`) |
+| `bluetooth` | só em placas Realtek rtw88 (ex.: RTL8821CE, Wi-Fi e Bluetooth no mesmo chip): desliga a economia de energia profunda/ASPM do driver e o power save do Wi-Fi, que travam o firmware e fazem o fone Bluetooth (LDAC) cortar. Vale após reiniciar |
 | `auth` | desativa login por digital e smartcard |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
 
@@ -140,6 +141,7 @@ config/kitty/kitty.conf
 config/firefox/              user.js e userChrome.css
 config/vlc-mimeapps.list      formatos abertos pelo VLC
 config/vscode/                settings.json e lista de extensões
+config/system/                arquivos de /etc (driver rtw88 e power save do Wi-Fi)
 config/extensions/            configurações das extensões + extensão local
 config/extensions/accent-quick-settings@vitor.local/ seletor de cor e botões do menu rápido
 ```

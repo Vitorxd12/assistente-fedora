@@ -25,7 +25,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode auth terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode bluetooth auth terminal)
 declare -A DESC=(
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
@@ -40,6 +40,7 @@ declare -A DESC=(
   [extensions]="Tiling Shell, Clipboard Indicator, Blur my Shell, Compiz effect, Astra Monitor, gestos do touchpad e cor de destaque nas Configurações Rápidas"
   [firefox]="página inicial padrão, restaurar abas da sessão anterior, abas embaixo da barra de endereço"
   [vscode]="configurações do VS Code (tema Catppuccin Mocha, salvar automático) e extensões"
+  [bluetooth]="corrige cortes no fone Bluetooth em placas Realtek rtw88 (Wi-Fi e BT no mesmo chip)"
   [auth]="desativa login por digital (authselect)"
   [terminal]="kitty como terminal padrão; remove o Ptyxis (só se rodando no kitty)"
 )
@@ -318,6 +319,15 @@ power_profile() {
     org.freedesktop.UPower.PowerProfiles ActiveProfile 2>/dev/null | sed -E 's/^s "(.*)"$/\1/'
 }
 
+
+# ── bluetooth: Realtek rtw88 (Wi-Fi + Bluetooth no mesmo chip) ──
+SYS_FILES=(
+  "config/system/rtw88.conf|/etc/modprobe.d/rtw88.conf|economia de energia do driver rtw88"
+  "config/system/wifi-powersave-off.conf|/etc/NetworkManager/conf.d/wifi-powersave-off.conf|power save do Wi-Fi"
+)
+rtw88_present() { [[ -d /sys/module/rtw88_pci ]] || lsmod | grep -q '^rtw88_'; }
+wifi_ifaces() { nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="wifi"{print $1}'; }
+
 # ── planos (só leem o sistema; nada é alterado aqui) ──────────
 plan_packages() {
   local p missing=() present=()
@@ -521,6 +531,17 @@ plan_vscode() {
   plan_file "$REPO/config/vscode/settings.json" "$dir/settings.json" "tema, salvar automático"
   local id
   while read -r id; do [[ -n $id ]] && plan_add "instalar a extensão $id"; done < <(vscode_missing_exts)
+  return 0
+}
+
+plan_bluetooth() {
+  rtw88_present || { plan_note "não há placa Realtek rtw88 nesta máquina; nada a fazer"; return 0; }
+  local e src dst what
+  for e in "${SYS_FILES[@]}"; do
+    IFS='|' read -r src dst what <<<"$e"
+    plan_file "$REPO/$src" "$dst" "$what, usa sudo"
+  done
+  (( PLAN_N )) && plan_note "o ajuste do driver vale depois de reiniciar o computador"
   return 0
 }
 
@@ -861,6 +882,23 @@ step_vscode() {
     [[ -n $id ]] || continue
     vscode_cli --install-extension "$id" >/dev/null 2>&1 && ok "extensão $id" || err "falha ao instalar a extensão $id"
   done < <(vscode_missing_exts)
+}
+
+step_bluetooth() {
+  rtw88_present || return 0
+  local e src dst what i
+  for e in "${SYS_FILES[@]}"; do
+    IFS='|' read -r src dst what <<<"$e"
+    if [[ -f $dst ]] && cmp -s "$REPO/$src" "$dst"; then ok "já atualizado: $dst"; continue; fi
+    [[ -f $dst ]] && sudo cp -a "$dst" "$dst.bak-$TS" && warn "backup: $dst.bak-$TS"
+    sudo install -D -m 644 "$REPO/$src" "$dst" && ok "instalado: $dst ($what)"
+  done
+  # power save do Wi-Fi: desliga já, sem esperar reconectar
+  sudo nmcli general reload conf >/dev/null 2>&1 || true
+  for i in $(wifi_ifaces); do
+    sudo iw dev "$i" set power_save off 2>/dev/null && ok "power save desligado agora em $i"
+  done
+  warn "reinicie o computador para o driver rtw88 carregar com os novos parâmetros"
 }
 
 step_auth() {
