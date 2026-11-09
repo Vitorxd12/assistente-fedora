@@ -86,12 +86,31 @@ class SaverTests(unittest.TestCase):
         config = {'gpu_mode': 'eco', 'gpu_auto': 0, 'performance_1': 1}
         want = module.preferences(config, '/helper --apply')
         self.assertEqual(want['performance_1'], 1)
+        self.assertEqual(want['auto_boost_1'], 1)
         self.assertEqual(config['gpu_mode'], 'eco')
         self.assertFalse(any('gpu' in x or 'wifi' in x or 'bluetooth' in x for x in want))
 
     def test_preserve_existing_mode_commands(self):
         with self.assertRaises(ValueError):
             module.preferences({'mode_command_2': 'user-command'}, '/helper --apply')
+
+    def test_maximum_ac_and_uninstall_restore(self):
+        hw, state = Fake(screen=65, boost=1), {}
+        module.maximum_ac(hw, state, lambda value: None)
+        self.assertEqual(hw.values['screen:panel'], 100)
+        self.assertEqual(hw.values['intel-no-turbo'], 0)
+        self.run_saver(hw, state, True)
+        self.run_saver(hw, state, False)
+        module.maximum_ac(hw, state, lambda value: None)
+        module.restore_ac_original(hw, state, lambda value: None)
+        self.assertEqual(hw.values['screen:panel'], 65)
+        self.assertEqual(hw.values['intel-no-turbo'], 1)
+
+    def test_maximum_ac_repeated_does_not_lose_backup(self):
+        hw, state = Fake(), {}
+        module.maximum_ac(hw, state, lambda value: None)
+        module.maximum_ac(hw, state, lambda value: None)
+        self.assertEqual(state['original_ac']['screen:panel'], 65)
 
 
 if __name__ == '__main__':

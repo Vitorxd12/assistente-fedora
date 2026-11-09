@@ -11,11 +11,11 @@ de forçar Desempenho, para não contradizer os perfis automáticos.
 
 | Controle | Bateria | Tomada |
 |---|---|---|
-| G-Helper/firmware | Silencioso | perfil AC já salvo; Equilibrado se não havia um |
-| Tela | limita brilho a 40%, sem aumentar brilho já menor | restaura o valor anterior à bateria |
-| CPU Boost | desliga temporariamente | restaura o valor lido antes da economia |
+| G-Helper/firmware | Silencioso | Turbo nativo |
+| Tela | limita brilho a 40%, sem aumentar brilho já menor | 100% de brilho |
+| CPU Boost | desliga temporariamente | habilitado |
 | Inatividade | apaga a tela após até 5 minutos | restaura a preferência anterior |
-| Teclado | no máximo nível 1; mantém apagado se já estava apagado | nível AC salvo |
+| Teclado | no máximo nível 1; mantém apagado se já estava apagado | nível máximo suportado |
 | Taxa de atualização | 60 Hz e overdrive desligado | maior taxa suportada e overdrive, pelo recurso nativo screen_auto |
 
 Cor GNOME, saturação e tom do teclado são preservados. A redução de CPU Boost
@@ -36,7 +36,7 @@ e a preferência GNOME de inatividade, depois encerra. Sem daemon, polling,
 timer systemd, sudo ou mudança no código do G-Helper. O observador de energia
 existente do G-Helper dispara a seleção AC/DC (pode levar alguns segundos).
 G-Helper precisa estar aberto na bandeja/autostart. Se for encerrado, não há
-observador alternativo: a restauração ocorre ao voltar a executá-lo na tomada.
+observador alternativo: os ajustes AC são aplicados ao voltar a executá-lo na tomada.
 
 Comandos por modo já configurados pelo usuário não são sobrescritos: a etapa
 para com erro, para permitir integração consciente. Hooks repetidos são
@@ -73,7 +73,7 @@ Teste isolado, sem hardware: `python3 -B tests/test_battery_saver.py`.
 
 ## Validação nesta instalação (2026-11-09)
 
-Oito testes isolados passaram: bateria/tomada, hooks repetidos, brilho já
+Dez testes isolados passaram: bateria/tomada, hooks repetidos, brilho já
 baixo, turbo já desligado, início em AC, dispositivo ausente, falha de
 permissão e preservação de comandos existentes. Sintaxe bash e git diff
 --check passaram. O --dry-run reconhece a etapa já aplicada.
@@ -81,6 +81,8 @@ permissão e preservação de comandos existentes. Sintaxe bash e git diff
 No hardware em bateria: perfil quiet, CPU no_turbo=1, tela 60 Hz, brilho 30%
 (já estava abaixo do limite de 40%) e teclado no nível 1. O retorno físico
 à tomada ainda não foi testado: o usuário não podia conectar o carregador.
-Snapshots anteriores preservados, inclusive boost habilitado, para restaurar.
+Snapshots anteriores preservados para reversão da automação. A política AC
+foi atualizada a pedido do usuário: Turbo, CPU Boost e brilho máximo.
+Os dois testes adicionais cobrem máximo na tomada e reversão sem perder backup.
 Arquivos config/system/rtw88.conf e wifi-powersave-off.conf intactos. GPU em
 Eco (MUX=1, dgpu_disable=1); sem automação de GPU ou novo serviço residente.

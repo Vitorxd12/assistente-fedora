@@ -109,6 +109,33 @@ def on_battery():
     return value.get_boolean()
 
 
+def maximum_ac(hw, state, persist):
+    originals = state.setdefault('original_ac', {})
+    for key, value in hw.read().items():
+        if key.startswith('screen:'):
+            target = hw.limits[key]
+        elif key in ('intel-no-turbo', 'cpu-boost'):
+            target = 0 if key == 'intel-no-turbo' else 1
+        else:
+            continue
+        if key not in originals:
+            originals[key] = value
+            persist(state)
+        if value != target:
+            hw.write(key, target)
+
+
+def restore_ac_original(hw, state, persist):
+    values = hw.read()
+    originals = state.setdefault('original_ac', {})
+    for key, value in list(originals.items()):
+        if key in values:
+            if values[key] != value:
+                hw.write(key, value)
+            del originals[key]
+            persist(state)
+
+
 def ghelper_running():
     for p in Path('/proc').glob('[0-9]*'):
         try:
@@ -120,12 +147,13 @@ def ghelper_running():
 
 
 def preferences(config, command):
-    ac = config.get('performance_1', 0)
-    if not isinstance(ac, int) or ac < 0:
-        raise ValueError('perfil AC inválido no G-Helper')
-    result = {'performance_0': 2, 'performance_1': ac, 'screen_auto': 1, 'aspm': 0,
+    ac = 1  # Native Turbo profile; no custom clocks or power limits.
+    maximum = Path('/sys/class/leds/asus::kbd_backlight/max_brightness')
+    keyboard_max = int(maximum.read_text()) if maximum.exists() else 3
+    result = {'performance_0': 2, 'performance_1': ac, 'auto_boost_1': 1,
+              'screen_auto': 1, 'aspm': 0,
               'keyboard_brightness': min(config.get('keyboard_brightness', 1), 1),
-              'keyboard_brightness_ac': config.get('keyboard_brightness_ac', config.get('keyboard_brightness', 1))}
+              'keyboard_brightness_ac': keyboard_max}
     for mode in {0, 1, 2, ac}:
         key = f'mode_command_{mode}'
         if config.get(key) not in (None, '', command):
@@ -178,11 +206,13 @@ def main():
             save_json(backup_path, backup)
             config.update(want)
             save_json(config_path, config)
-            print('G-Helper: Silencioso na bateria; perfil AC preservado; hooks configurados.')
+            print('G-Helper: Silencioso na bateria; Turbo e brilho máximo na tomada; hooks configurados.')
         elif args.restore:
             if ghelper_running():
                 raise RuntimeError('feche o G-Helper antes de restaurar as preferências')
-            apply(Hardware(), state, False, persist)
+            hw = Hardware()
+            apply(hw, state, False, persist)
+            restore_ac_original(hw, state, persist)
             if backup_path.exists():
                 backup = json.loads(backup_path.read_text())
                 for key, value in backup['managed'].items():
@@ -196,9 +226,12 @@ def main():
             print('Preferências anteriores restauradas; alterações posteriores do usuário preservadas.')
         else:
             battery = on_battery()
-            apply(Hardware(), state, battery, persist)
+            hw = Hardware()
+            apply(hw, state, battery, persist)
+            if not battery:
+                maximum_ac(hw, state, persist)
             print('battery-saver: ' + ('bateria: brilho até 40%, sem turbo, tela inativa em até 5min'
-                                      if battery else 'tomada: valores anteriores restaurados'))
+                                      if battery else 'tomada: brilho máximo e turbo habilitado'))
 
 
 if __name__ == '__main__':
