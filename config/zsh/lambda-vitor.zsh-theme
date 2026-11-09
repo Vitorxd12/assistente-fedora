@@ -11,6 +11,12 @@ typeset -g LV_BRANCH=$''
 typeset -g LV_FOLDER=$''
 typeset -g LV_CLOCK=$''
 typeset -g LV_LAMBDA='λ'
+typeset -g LV_PROMPT_NAME="${USER:-$(id -un)}"
+typeset -g LV_PROMPT_NAME_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/assistente-fedora/prompt-name"
+if [[ -r $LV_PROMPT_NAME_FILE ]]; then
+  IFS= read -r LV_PROMPT_NAME < "$LV_PROMPT_NAME_FILE"
+  [[ -n $LV_PROMPT_NAME ]] || LV_PROMPT_NAME="${USER:-$(id -un)}"
+fi
 
 # cores (256)
 typeset -g LV_ORANGE=208   # fallback; sobrescrito pela cor de destaque do GNOME
@@ -45,8 +51,9 @@ typeset -g LV_GIT_OK=71
 typeset -g LV_GIT_DIRTY=178
 
 lv_build() {
-  local branch bg marks="" st ab ahead behind
-  local line="%F{$LV_ORANGE}$LV_L%K{$LV_ORANGE}%F{$LV_ACCENT_FG}%B $LV_LAMBDA vitor %b"
+  local branch bg marks="" st ab ahead behind prompt_name
+  prompt_name=${LV_PROMPT_NAME//\%/%%}
+  local line="%F{$LV_ORANGE}$LV_L%K{$LV_ORANGE}%F{$LV_ACCENT_FG}%B $LV_LAMBDA $prompt_name %b"
   line+="%K{$LV_DIR}%F{$LV_ORANGE}$LV_SEP%F{#ffffff} $LV_FOLDER %3~ "
   branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
   if [[ -n $branch ]]; then

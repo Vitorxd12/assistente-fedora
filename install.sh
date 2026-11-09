@@ -32,7 +32,7 @@ declare -A DESC=(
   [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
-  [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; zsh como shell padrão"
+  [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; nome personalizado no prompt"
   [tools]="ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git com delta"
   [kitty]="config do kitty, fundo borrado do wallpaper, cor de destaque"
   [gnome]="tema escuro, atalhos, teclado/mouse, privacidade, dock"
@@ -386,6 +386,7 @@ plan_zsh() {
   done
   plan_file "$REPO/config/zsh/lambda-vitor.zsh-theme" "$HOME/.oh-my-zsh/custom/themes/lambda-vitor.zsh-theme" "tema do prompt"
   plan_file "$REPO/config/zsh/zshrc" "$HOME/.zshrc" "aliases, plugins, cd inteligente"
+  plan_add "nome exibido no prompt (configuração local)"
   local sh; sh=$(getent passwd "$USER" | cut -d: -f7)
   [[ $sh == */zsh ]] || plan_chg "shell padrão: ${c_dim}$sh${c_reset} → ${c_cyn}zsh${c_reset} ${c_dim}(vale no próximo login)${c_reset}"
   return 0
@@ -678,6 +679,26 @@ step_zsh() {
     n=${r#*/}
     [[ -d $C/plugins/$n ]] || { git clone -q --depth=1 "https://github.com/$r" "$C/plugins/$n" && ok "plugin $n"; }
   done
+  local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local prompt_name_file="$config_home/assistente-fedora/prompt-name"
+  local prompt_name=""
+  if [[ -r $prompt_name_file ]]; then IFS= read -r prompt_name < "$prompt_name_file"; fi
+  prompt_name=${prompt_name:-${USER:-$(id -un)}}
+  if (( ! ASSUME_YES )); then
+    local entered_name
+    while true; do
+      read -r -p "Nome para mostrar no prompt do terminal [$prompt_name]: " entered_name </dev/tty || return 1
+      entered_name=${entered_name:-$prompt_name}
+      if (( ${#entered_name} <= 40 )) && [[ $entered_name != *[$'\001'-$'\037'$'\177']* ]]; then
+        prompt_name=$entered_name
+        break
+      fi
+      warn "o nome deve ter até 40 caracteres e não pode conter caracteres de controle"
+    done
+  fi
+  mkdir -p "$(dirname "$prompt_name_file")"
+  printf '%s\n' "$prompt_name" > "$prompt_name_file"
+  ok "nome no prompt: $prompt_name"
   put "$REPO/config/zsh/lambda-vitor.zsh-theme" "$C/themes/lambda-vitor.zsh-theme"
   put "$REPO/config/zsh/zshrc" "$HOME/.zshrc"
   if [[ $(getent passwd "$USER" | cut -d: -f7) != */zsh ]]; then

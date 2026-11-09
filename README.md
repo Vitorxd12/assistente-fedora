@@ -96,9 +96,12 @@ Fluxo recomendado numa instalação nova:
 
 ## Terminal
 
-- Prompt numa linha: `λ vitor  ~/pasta  branch ❯`, nas cores de destaque do GNOME
+- Prompt numa linha: `λ nome  ~/pasta  branch ❯`, nas cores de destaque do GNOME
   (a pasta usa a mesma cor, escurecida). O `❯` fica vermelho quando o último
-  comando falha.
+  comando falha. Ao aplicar a etapa `zsh`, o instalador pergunta qual nome
+  mostrar; ele fica salvo em
+  `~/.config/assistente-fedora/prompt-name`. Com `--yes`, usa o nome já salvo
+  ou, na primeira execução, o nome da conta do Linux.
 - Ao digitar `cd `, as pastas aparecem embaixo; Tab escolhe.
 - `cd nome` funciona de qualquer lugar: se a pasta não existe ali, pula para
   a pasta mais usada com esse nome (ex.: `cd tecsus` da home).
@@ -113,7 +116,7 @@ Fluxo recomendado numa instalação nova:
   mudanças do wallpaper, tema claro/escuro e cor de destaque automaticamente;
   cada atualização cria um novo arquivo de fundo para o Kitty recarregá-lo.
   Para gerar manualmente, rode `kitty-wallpaper` (ou `kitty-wallpaper 30` para mais blur).
-- Rolagem do Kitty: roda um clique = três linhas (`wheel_scroll_multiplier 3.0`);
+- Rolagem do Kitty: roda um clique = três linhas e meia (`wheel_scroll_multiplier 3.5`);
   touchpad pixel a pixel, multiplicador 2.0 e inércia curta (`momentum_scroll 0.85`).
   Usa Wayland nativo: no XWayland o touchpad chega como roda de mouse e esses ajustes
   eram ignorados. A barra de título passa a ser a do próprio Kitty. Reabra o Kitty após
