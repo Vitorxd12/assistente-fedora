@@ -34,7 +34,7 @@ Antes de mexer em qualquer coisa, o script calcula o que realmente vai mudar
 **nesta máquina** e pergunta:
 
 ```
-╭─ gnome — tema escuro, atalhos, teclado/touchpad, privacidade, dock
+╭─ gnome — tema escuro, atalhos, teclado, privacidade, dock
 │  ~ tema escuro: 'default' → 'prefer-dark'
 │  ~ cor de destaque: 'blue' → 'red'
 │  ~ apps fixados na dock (dock vazia): ['org.mozilla.firefox.desktop', …] → @as []
@@ -76,7 +76,7 @@ Fluxo recomendado numa instalação nova:
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
-| `gnome` | modo escuro, cor roxa padrão, botões min/max, teclado ABNT2, arrastar com dois toques desativado, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads); preserva o perfil de energia |
+| `gnome` | modo escuro, cor roxa padrão, botões min/max, teclado ABNT2, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads); preserva o perfil de energia |
 | `energy` | com G-Helper já configurado: Silencioso na bateria, tela cerca de 30% mais escura, turbo temporariamente desligado, tela inativa em até 5 minutos, teclado em nível baixo e atualização automática; na tomada usa Turbo, CPU Boost, brilho anterior da tela e teclado no máximo e restaura a inatividade. Não altera GPU, rede, Bluetooth, fans ou TuneD |
 | `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus, com escurecimento leve; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos e substitui os botões Modo avião, Modo escuro e Não perturbe por um seletor de cor de destaque nas Configurações Rápidas |
