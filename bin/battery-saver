@@ -1,0 +1,209 @@
+#!/usr/bin/python3
+"""One-shot AC/DC settings, invoked by G-Helper's native mode-command hook.
+
+No network, GPU, TuneD, kernel module, fan or privileged operations.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import shlex
+import sys
+
+
+def save_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    tmp = path.with_suffix('.tmp')
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'w') as f:
+        json.dump(value, f, indent=2)
+        f.write('\n')
+    tmp.replace(path)
+
+
+class Hardware:
+    def __init__(self):
+        self.paths = {}
+        self.limits = {}
+        for p in sorted(Path('/sys/class/backlight').glob('*')):
+            try:
+                maximum = int((p / 'max_brightness').read_text())
+                if maximum > 0:
+                    key = 'screen:' + p.name
+                    self.paths[key] = p / 'brightness'
+                    self.limits[key] = maximum
+            except (OSError, ValueError):
+                pass
+        intel = Path('/sys/devices/system/cpu/intel_pstate/no_turbo')
+        generic = Path('/sys/devices/system/cpu/cpufreq/boost')
+        if intel.exists():
+            self.paths['intel-no-turbo'] = intel
+        elif generic.exists():
+            self.paths['cpu-boost'] = generic
+
+    def read(self):
+        values = {}
+        for key, p in self.paths.items():
+            try:
+                values[key] = int(p.read_text())
+            except (OSError, ValueError) as error:
+                print(f'battery-saver: leitura {key}: {error}', file=sys.stderr)
+        from gi.repository import Gio
+        self.session = Gio.Settings.new('org.gnome.desktop.session')
+        values['idle-delay'] = self.session.get_uint('idle-delay')
+        return values
+
+    def target(self, key, value):
+        if key.startswith('screen:'):
+            # Never brighten an already dim screen; retain at least 4%.
+            return min(value, max(1, round(self.limits[key] * 0.40)))
+        if key == 'idle-delay':
+            return min(value, 300) if value else 300
+        return 1 if key == 'intel-no-turbo' else 0
+
+    def write(self, key, value):
+        if key == 'idle-delay':
+            from gi.repository import Gio
+            if not self.session.set_uint('idle-delay', value):
+                raise OSError('preferência de inatividade bloqueada')
+            Gio.Settings.sync()
+        else:
+            self.paths[key].write_text(str(value))
+
+
+def apply(hw, state, battery, persist):
+    """Save before writing, retry failures, never overwrite a saved AC value."""
+    values = hw.read()
+    snapshots = state.setdefault('restore', {})
+    if battery:
+        for key, original in values.items():
+            if key not in snapshots:
+                snapshots[key] = original
+                persist(state)
+            target = hw.target(key, original)
+            if original != target:
+                hw.write(key, target)
+        state['on_battery'] = True
+        persist(state)
+    else:
+        for key, original in list(snapshots.items()):
+            if key not in values:
+                continue  # Device absent now: retain for a later restore.
+            if values[key] != original:
+                hw.write(key, original)
+            del snapshots[key]
+            persist(state)
+        state['on_battery'] = False
+        persist(state)
+
+
+def on_battery():
+    from gi.repository import Gio
+    proxy = Gio.DBusProxy.new_for_bus_sync(
+        Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, None,
+        'org.freedesktop.UPower', '/org/freedesktop/UPower',
+        'org.freedesktop.UPower', None)
+    value = proxy.get_cached_property('OnBattery')
+    if value is None:
+        raise RuntimeError('UPower não informou a fonte de energia')
+    return value.get_boolean()
+
+
+def ghelper_running():
+    for p in Path('/proc').glob('[0-9]*'):
+        try:
+            if p.stat().st_uid == os.getuid() and (p / 'comm').read_text().strip() == 'ghelper':
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def preferences(config, command):
+    ac = config.get('performance_1', 0)
+    if not isinstance(ac, int) or ac < 0:
+        raise ValueError('perfil AC inválido no G-Helper')
+    result = {'performance_0': 2, 'performance_1': ac, 'screen_auto': 1, 'aspm': 0,
+              'keyboard_brightness': min(config.get('keyboard_brightness', 1), 1),
+              'keyboard_brightness_ac': config.get('keyboard_brightness_ac', config.get('keyboard_brightness', 1))}
+    for mode in {0, 1, 2, ac}:
+        key = f'mode_command_{mode}'
+        if config.get(key) not in (None, '', command):
+            raise ValueError(f'{key} já possui um comando; preservado sem sobrescrever')
+        result[key] = command
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group(required=True)
+    for name in ('apply', 'configure', 'check', 'restore', 'status'):
+        modes.add_argument('--' + name, action='store_true')
+    args = parser.parse_args()
+    if os.geteuid() == 0:
+        raise RuntimeError('execute como seu usuário, sem sudo')
+    config_home = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+    config_path = config_home / 'ghelper/config.json'
+    state_dir = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'battery-saver'
+    command = shlex.quote(str(Path.home() / '.local/bin/battery-saver')) + ' --apply'
+    config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    if args.check or args.status:
+        if args.status:
+            print(json.dumps({'on_battery': on_battery(), 'hardware': Hardware().read(),
+                              'preferences': {k: config.get(k) for k in preferences(config, command)}}, indent=2))
+            return
+        want = preferences(config, command)
+        sys.exit(0 if config_path.exists() and all(config.get(k) == v for k, v in want.items()) else 1)
+    state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with open(state_dir / 'lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state_path = state_dir / 'session.json'
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        persist = lambda value: save_json(state_path, value)
+        backup_path = state_dir / 'preferences.json'
+        if args.configure:
+            if ghelper_running():
+                raise RuntimeError('feche o G-Helper antes de configurar; não será encerrado automaticamente')
+            if not config_path.exists():
+                raise RuntimeError('configure o G-Helper primeiro; ele não será instalado por esta etapa')
+            want = preferences(config, command)
+            backup = json.loads(backup_path.read_text()) if backup_path.exists() else {'original': {}, 'managed': {}}
+            for key, value in want.items():
+                if key not in backup['managed'] or config.get(key) != backup['managed'][key]:
+                    if key in config:
+                        backup['original'][key] = config[key]
+                    else:
+                        backup['original'].pop(key, None)
+                backup['managed'][key] = value
+            save_json(backup_path, backup)
+            config.update(want)
+            save_json(config_path, config)
+            print('G-Helper: Silencioso na bateria; perfil AC preservado; hooks configurados.')
+        elif args.restore:
+            if ghelper_running():
+                raise RuntimeError('feche o G-Helper antes de restaurar as preferências')
+            apply(Hardware(), state, False, persist)
+            if backup_path.exists():
+                backup = json.loads(backup_path.read_text())
+                for key, value in backup['managed'].items():
+                    if config.get(key) == value:
+                        if key in backup['original']:
+                            config[key] = backup['original'][key]
+                        else:
+                            config.pop(key, None)
+                save_json(config_path, config)
+                backup_path.unlink()
+            print('Preferências anteriores restauradas; alterações posteriores do usuário preservadas.')
+        else:
+            battery = on_battery()
+            apply(Hardware(), state, battery, persist)
+            print('battery-saver: ' + ('bateria: brilho até 40%, sem turbo, tela inativa em até 5min'
+                                      if battery else 'tomada: valores anteriores restaurados'))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f'battery-saver: {error}', file=sys.stderr)
+        sys.exit(1)

@@ -25,8 +25,9 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome wallpaper extensions firefox vscode bluetooth auth terminal)
+STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome energy wallpaper extensions firefox vscode bluetooth auth terminal)
 declare -A DESC=(
+  [energy]="economia automática na bateria via G-Helper: brilho, CPU e tela; restaura na tomada"
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
   [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"
@@ -314,12 +315,6 @@ vscode_missing_exts() {  # extensões da lista que ainda não estão instaladas
   done < "$REPO/config/vscode/extensions.txt"
 }
 
-power_profile() {
-  busctl get-property org.freedesktop.UPower.PowerProfiles /org/freedesktop/UPower/PowerProfiles \
-    org.freedesktop.UPower.PowerProfiles ActiveProfile 2>/dev/null | sed -E 's/^s "(.*)"$/\1/'
-}
-
-
 # ── bluetooth: Realtek rtw88 (Wi-Fi + Bluetooth no mesmo chip) ──
 SYS_FILES=(
   "config/system/rtw88.conf|/etc/modprobe.d/rtw88.conf|economia de energia do driver rtw88"
@@ -470,9 +465,17 @@ plan_gnome() {
   for d in repos Documents Downloads; do
     grep -qs "^file://$HOME/$d " "$HOME/.config/gtk-3.0/bookmarks" || plan_add "atalho no Nautilus: $d"
   done
-  local pp; pp=$(power_profile)
-  if [[ -n $pp && $pp != performance ]]; then
-    plan_chg "perfil de energia: ${c_dim}$pp${c_reset} → ${c_cyn}performance${c_reset}"
+  return 0
+}
+
+plan_energy() {
+  if [[ ! -f $HOME/.config/ghelper/config.json ]]; then
+    plan_note "G-Helper não configurado: etapa energy será pulada (não instala aplicativos)"
+    return 0
+  fi
+  plan_file "$REPO/bin/battery-saver" "$HOME/.local/bin/battery-saver"
+  if ! python3 "$REPO/bin/battery-saver" --check 2>/dev/null; then
+    plan_chg "configurar bateria/AC pelos hooks nativos do G-Helper (feche o aplicativo antes)"
   fi
   return 0
 }
@@ -768,14 +771,20 @@ step_gnome() {
   for d in repos Documents Downloads; do
     grep -q "^file://$HOME/$d " "$bm" || { echo "file://$HOME/$d $d" >> "$bm"; ok "atalho no Nautilus: $d"; }
   done
-  if [[ $(power_profile) != performance ]]; then
-    if busctl set-property org.freedesktop.UPower.PowerProfiles /org/freedesktop/UPower/PowerProfiles \
-         org.freedesktop.UPower.PowerProfiles ActiveProfile s performance 2>/dev/null; then
-      ok "perfil de energia: desempenho"
-    else
-      warn "não consegui ativar o perfil Desempenho (máquina sem suporte?)"
-    fi
+}
+
+step_energy() {
+  [[ -f $HOME/.config/ghelper/config.json ]] || { warn "G-Helper não configurado; energy pulada"; return 0; }
+  if pgrep -u "$UID" -x ghelper >/dev/null; then
+    err "feche somente o G-Helper e execute ./install.sh --only energy novamente"
+    return 1
   fi
+  mkdir -p "$HOME/.local/bin"
+  put "$REPO/bin/battery-saver" "$HOME/.local/bin/battery-saver"
+  chmod 755 "$HOME/.local/bin/battery-saver"
+  "$HOME/.local/bin/battery-saver" --configure || return 1
+  "$HOME/.local/bin/battery-saver" --apply || return 1
+  ok "economia configurada; abra o G-Helper para acompanhar bateria/tomada"
 }
 
 step_wallpaper() {
