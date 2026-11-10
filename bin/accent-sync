@@ -55,7 +55,6 @@ interface.get_value("accent-color")
 interface.get_value("color-scheme")
 background.get_value("picture-uri")
 background.get_value("picture-uri-dark")
-run(wallpaper)
 GLib.MainLoop().run()
 PY
 fi

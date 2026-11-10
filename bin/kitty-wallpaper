@@ -2,6 +2,7 @@
 # Gera ~/.config/kitty/wallpaper-blur.png a partir do papel de parede atual do GNOME
 # (versão clara ou escura conforme o tema) e recarrega o kitty.
 #   uso: kitty-wallpaper [quantidade-de-blur]   (padrão: 18)
+#   FORCE=1 kitty-wallpaper   regera mesmo sem mudança no wallpaper
 set -euo pipefail
 
 BLUR="${1:-18}"
@@ -23,6 +24,16 @@ src=$(python3 -c 'import sys, urllib.parse as u; print(u.unquote(u.urlparse(sys.
 if [[ ! -f $src ]]; then
   echo "kitty-wallpaper: papel de parede não encontrado: $src" >&2
   exit 1
+fi
+
+# Mesmo wallpaper (caminho, data e tamanho) e mesmo blur já gerados: não refaz.
+# Evita ~3s de ImageMagick a cada login e a cada troca de cor de destaque.
+KEY_FILE="$HOME/.cache/kitty-wallpaper.key"
+key="$src|$(stat -c '%Y|%s' "$src")|$BLUR"
+current=$(sed -n 's/^background_image //p' "$CONFIG_DIR/wallpaper.conf" 2>/dev/null || true)
+if [[ ${FORCE:-} != 1 && -f $current && -f $KEY_FILE && $(<"$KEY_FILE") == "$key" ]]; then
+  rm -f "$OUT"; OUT=""
+  exit 0
 fi
 
 case "${src,,}" in
@@ -58,10 +69,12 @@ magick "$TMP/full.png" -resize 25% -blur "0x$BLUR" -resize 400% "$OUT"
 CONF_TMP=$(mktemp "$CONFIG_DIR/wallpaper.conf.XXXXXX")
 printf 'background_image %s\n' "$OUT" > "$CONF_TMP"
 mv -f "$CONF_TMP" "$CONFIG_DIR/wallpaper.conf"
+mkdir -p "$HOME/.cache" && printf '%s' "$key" > "$KEY_FILE"
 echo "kitty-wallpaper: gerado $OUT"
 
-# Mantém as versões recentes para as janelas terminarem de recarregar a imagem.
-find "$CONFIG_DIR" -maxdepth 1 -type f -name 'wallpaper-blur.*.png' -mtime +7 -delete
+# Mantém só as 3 versões mais recentes (janelas abertas podem ainda estar
+# recarregando a anterior); antes acumulavam por 7 dias, duas por login.
+ls -1t "$CONFIG_DIR"/wallpaper-blur.*.png 2>/dev/null | tail -n +4 | xargs -r rm -f --
 OUT=""
 
 pkill -USR1 -x kitty 2>/dev/null || true

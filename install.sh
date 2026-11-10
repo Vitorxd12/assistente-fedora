@@ -65,6 +65,7 @@ declare -A EXT_NAME=(
   [monitor@astraext.github.io]="Astra Monitor"
   [touchpad-gesture-customization@coooolapps.com]="Touchpad Gesture Customization"
   [hide-show-apps@vitor.local]="esconder botão 'Mostrar aplicativos'"
+  [kitty-window-buttons@vitor.local]="botões e faixa de arrasto do kitty sem barra de título"
   [background-logo@fedorahosted.org]="logo do Fedora no fundo"
   [accent-quick-settings@vitor.local]="seletor de cor de destaque nas Configurações Rápidas"
 )
@@ -109,6 +110,7 @@ gnome_table() {
 org.gnome.desktop.interface|color-scheme|'prefer-dark'|tema escuro
 org.gnome.desktop.interface|accent-color|'purple'|cor de destaque
 org.gnome.desktop.interface|enable-hot-corners|false|cantos ativos (canto superior esquerdo)
+org.gnome.desktop.interface|clock-format|'24h'|relógio em 24 horas
 org.gnome.desktop.background|picture-options|'zoom'|ajuste do papel de parede
 org.gnome.desktop.screensaver|picture-uri|'file:///usr/share/backgrounds/gnome/blobs-l.svg'|fundo da tela de bloqueio
 org.gnome.desktop.wm.preferences|button-layout|'appmenu:minimize,maximize,close'|botões minimizar, maximizar e fechar à direita
@@ -492,12 +494,16 @@ plan_extensions() {
   done
   plan_file "$REPO/config/extensions/hide-show-apps@vitor.local/extension.js" \
     "$HOME/.local/share/gnome-shell/extensions/hide-show-apps@vitor.local/extension.js" "${EXT_NAME[hide-show-apps@vitor.local]}"
+  for f in extension.js metadata.json; do
+    plan_file "$REPO/config/extensions/kitty-window-buttons@vitor.local/$f" \
+      "$HOME/.local/share/gnome-shell/extensions/kitty-window-buttons@vitor.local/$f" "${EXT_NAME[kitty-window-buttons@vitor.local]}"
+  done
   plan_file "$REPO/config/extensions/accent-quick-settings@vitor.local/extension.js" \
     "$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local/extension.js" "${EXT_NAME[accent-quick-settings@vitor.local]}"
   plan_file "$REPO/config/extensions/accent-quick-settings@vitor.local/metadata.json" \
     "$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local/metadata.json" "${EXT_NAME[accent-quick-settings@vitor.local]}"
   enabled=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)
-  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org; do
+  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local kitty-window-buttons@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org; do
     [[ $enabled == *"'$uuid'"* ]] || plan_add "ativar ${EXT_NAME[$uuid]}"
   done
   local cur; cur=$(mktemp)
@@ -808,13 +814,17 @@ step_extensions() {
   local dst="$HOME/.local/share/gnome-shell/extensions/hide-show-apps@vitor.local"
   mkdir -p "$dst"
   cp "$REPO/config/extensions/hide-show-apps@vitor.local/"* "$dst/"
+  # extensão local: botões e arrasto do kitty sem barra de título
+  local kwb_dst="$HOME/.local/share/gnome-shell/extensions/kitty-window-buttons@vitor.local"
+  mkdir -p "$kwb_dst"
+  cp "$REPO/config/extensions/kitty-window-buttons@vitor.local/"* "$kwb_dst/"
   # extensão local: remove três toggles e adiciona o seletor de cor de destaque
   local accent_dst="$HOME/.local/share/gnome-shell/extensions/accent-quick-settings@vitor.local"
   gnome-extensions disable accent-quick-settings@vitor.local >/dev/null 2>&1 || true
   mkdir -p "$accent_dst"
   cp "$REPO/config/extensions/accent-quick-settings@vitor.local/"* "$accent_dst/"
   # ativa todas (o GNOME carrega extensões novas no próximo login)
-  python3 - "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org <<'EOF'
+  python3 - "${EXTENSIONS[@]}" hide-show-apps@vitor.local kitty-window-buttons@vitor.local accent-quick-settings@vitor.local background-logo@fedorahosted.org <<'EOF'
 import subprocess, sys, ast
 cur = subprocess.run(["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
                      capture_output=True, text=True).stdout.strip()
@@ -825,7 +835,7 @@ for u in sys.argv[1:]:
 subprocess.run(["gsettings", "set", "org.gnome.shell", "enabled-extensions", str(cur)], check=True)
 EOF
   apply_gs extensions_table
-  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local accent-quick-settings@vitor.local; do
+  for uuid in "${EXTENSIONS[@]}" hide-show-apps@vitor.local kitty-window-buttons@vitor.local accent-quick-settings@vitor.local; do
     local activation
     if activation=$(gnome-extensions enable "$uuid" 2>&1); then
       local status

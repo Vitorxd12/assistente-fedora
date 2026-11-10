@@ -1,0 +1,6 @@
+{
+  "uuid": "kitty-window-buttons@vitor.local",
+  "name": "Kitty Window Buttons",
+  "description": "Botões minimizar, maximizar e fechar sobrepostos às janelas do kitty sem barra de título.",
+  "shell-version": ["49", "50", "51"]
+}

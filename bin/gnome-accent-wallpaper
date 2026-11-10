@@ -152,9 +152,12 @@ def sync_wallpapers(state: dict, accent: str, force: bool = False) -> None:
         target = WALLPAPER_DIR / f"blobs-{variant}-{accent}.svg"
         svg = source.read_text(encoding="utf-8")
         rendered = recolor_svg(svg, accent)
-        temporary = target.with_suffix(".svg.tmp")
-        temporary.write_text(rendered, encoding="utf-8")
-        os.replace(temporary, target)
+        # Só reescreve se mudou: preserva a data do arquivo, senão o kitty-wallpaper
+        # acha que o wallpaper mudou e regera o fundo borrado a cada login.
+        if not target.is_file() or target.read_text(encoding="utf-8") != rendered:
+            temporary = target.with_suffix(".svg.tmp")
+            temporary.write_text(rendered, encoding="utf-8")
+            os.replace(temporary, target)
         generated[key] = target.resolve().as_uri()
 
     for key in WALLPAPER_KEYS:
