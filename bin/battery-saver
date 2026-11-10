@@ -24,16 +24,6 @@ def save_json(path, value):
 class Hardware:
     def __init__(self):
         self.paths = {}
-        self.limits = {}
-        for p in sorted(Path('/sys/class/backlight').glob('*')):
-            try:
-                maximum = int((p / 'max_brightness').read_text())
-                if maximum > 0:
-                    key = 'screen:' + p.name
-                    self.paths[key] = p / 'brightness'
-                    self.limits[key] = maximum
-            except (OSError, ValueError):
-                pass
         intel = Path('/sys/devices/system/cpu/intel_pstate/no_turbo')
         generic = Path('/sys/devices/system/cpu/cpufreq/boost')
         if intel.exists():
@@ -54,9 +44,6 @@ class Hardware:
         return values
 
     def target(self, key, value):
-        if key.startswith('screen:'):
-            # Relative dimming, with a 4% floor; never brighten a dim screen.
-            return min(value, max(1, round(self.limits[key] * 0.04), round(value * 0.70)))
         if key == 'idle-delay':
             return min(value, 300) if value else 300
         return 1 if key == 'intel-no-turbo' else 0
@@ -75,14 +62,18 @@ def apply(hw, state, battery, persist):
     """Save before writing, retry failures, never overwrite a saved AC value."""
     values = hw.read()
     snapshots = state.setdefault('restore', {})
+    # Discard legacy screen snapshots without changing the user's brightness.
+    for key in list(snapshots):
+        if key.startswith('screen:'):
+            del snapshots[key]
+    values = {key: value for key, value in values.items() if not key.startswith('screen:')}
+    persist(state)
     if battery:
         for key, original in values.items():
             if key not in snapshots:
                 snapshots[key] = original
                 persist(state)
             target = hw.target(key, snapshots[key])
-            if key.startswith('screen:'):
-                target = min(original, target)
             if original != target:
                 hw.write(key, target)
         state['on_battery'] = True
@@ -206,7 +197,7 @@ def main():
             save_json(backup_path, backup)
             config.update(want)
             save_json(config_path, config)
-            print('G-Helper: Silencioso na bateria; Turbo na tomada; brilho da tela relativo.')
+            print('G-Helper: Silencioso na bateria; Turbo na tomada.')
         elif args.restore:
             if ghelper_running():
                 raise RuntimeError('feche o G-Helper antes de restaurar as preferências')
@@ -230,8 +221,8 @@ def main():
             apply(hw, state, battery, persist)
             if not battery:
                 performance_ac(hw, state, persist)
-            print('battery-saver: ' + ('bateria: brilho reduzido em cerca de 30%, sem turbo, tela inativa em até 5min'
-                                      if battery else 'tomada: brilho anterior e turbo habilitado'))
+            print('battery-saver: ' + ('bateria: sem turbo, tela inativa em até 5min'
+                                      if battery else 'tomada: turbo habilitado'))
 
 
 if __name__ == '__main__':

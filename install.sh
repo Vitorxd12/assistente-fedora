@@ -27,7 +27,7 @@ mkdir -p "$HOME/.cache"
 
 STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome energy wallpaper extensions firefox vscode bluetooth auth terminal)
 declare -A DESC=(
-  [energy]="economia automática na bateria via G-Helper: brilho, CPU e tela; Turbo e brilho anterior na tomada"
+  [energy]="economia automática na bateria via G-Helper: CPU e inatividade da tela; Turbo na tomada"
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
   [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"

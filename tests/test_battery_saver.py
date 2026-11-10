@@ -15,7 +15,6 @@ class Fake:
 
     def __init__(self, screen=65, boost=0, idle=900):
         self.values = {'screen:panel': screen, 'intel-no-turbo': boost, 'idle-delay': idle}
-        self.limits = {'screen:panel': 100}
         self.writes = []
         self.fail = False
 
@@ -37,7 +36,7 @@ class SaverTests(unittest.TestCase):
         hw, state = Fake(), {}
         original = hw.read()
         self.run_saver(hw, state, True)
-        self.assertEqual(hw.read(), {'screen:panel': 46, 'intel-no-turbo': 1, 'idle-delay': 300})
+        self.assertEqual(hw.read(), {'screen:panel': 65, 'intel-no-turbo': 1, 'idle-delay': 300})
         self.run_saver(hw, state, False)
         self.assertEqual(hw.read(), original)
         self.assertEqual(state['restore'], {})
@@ -46,7 +45,7 @@ class SaverTests(unittest.TestCase):
         hw, state = Fake(), {}
         self.run_saver(hw, state, True)
         self.run_saver(hw, state, True)
-        self.assertEqual(hw.values['screen:panel'], 46)
+        self.assertEqual(hw.values['screen:panel'], 65)
         self.run_saver(hw, state, False)
         self.assertEqual(hw.values['screen:panel'], 65)
 
@@ -62,22 +61,22 @@ class SaverTests(unittest.TestCase):
         self.run_saver(hw, state, False)
         self.assertEqual(hw.writes, [])
 
-    def test_missing_device_saved_until_it_returns(self):
-        hw, state = Fake(), {}
-        self.run_saver(hw, state, True)
-        del hw.values['screen:panel']
-        self.run_saver(hw, state, False)
-        self.assertEqual(state['restore'], {'screen:panel': 65})
-        hw.values['screen:panel'] = 40
-        self.run_saver(hw, state, False)
-        self.assertEqual(hw.values['screen:panel'], 65)
+    def test_legacy_screen_snapshot_is_discarded_without_writing(self):
+        for battery in (True, False):
+            with self.subTest(battery=battery):
+                hw = Fake(screen=40)
+                state = {'restore': {'screen:panel': 65}}
+                self.run_saver(hw, state, battery)
+                self.assertNotIn('screen:panel', state['restore'])
+                self.assertEqual(hw.values['screen:panel'], 40)
+                self.assertFalse(any(key.startswith('screen:') for key, _ in hw.writes))
 
     def test_permission_failure_keeps_saved_value(self):
         hw, state = Fake(), {}
         hw.fail = True
         with self.assertRaises(PermissionError):
             self.run_saver(hw, state, True)
-        self.assertEqual(state['restore']['screen:panel'], 65)
+        self.assertEqual(state['restore']['intel-no-turbo'], 0)
         hw.fail = False
         self.run_saver(hw, state, True)
         self.run_saver(hw, state, False)
