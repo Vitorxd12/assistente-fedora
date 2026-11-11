@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Instala a versão oficial fixada do Orca, sem sudo ou FUSE."""
+import argparse
+import hashlib
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import tempfile
+from datetime import datetime
+from urllib.request import urlopen
+
+VERSION = '1.4.256'
+SHA256 = '5453149acd73ad044ad2a3e24226c3467cdc13f317b6ef4778aeb3e14f61a3dd'
+URL = f'https://github.com/stablyai/orca/releases/download/v{VERSION}/orca-linux.AppImage'
+ROOT = Path.home() / '.local/opt/orca'
+APP = ROOT / 'squashfs-root'
+DATA = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+ICON = DATA / 'icons/hicolor/512x512/apps/orca-ide.png'
+DESKTOP = DATA / 'applications/orca-ide.desktop'
+
+
+def desktop_text():
+    # Exec usa aspas e escapes próprios do formato desktop.
+    executable = str(APP / 'AppRun')
+    for char in ('\\', '"', '`', '$'):
+        executable = executable.replace(char, '\\' + char)
+    executable = executable.replace('%', '%%')
+    return f'''[Desktop Entry]
+Name=Orca
+Comment=Orquestrador de agentes de programação
+Exec="{executable}" %U
+Terminal=false
+Type=Application
+Icon=orca-ide
+StartupWMClass=orca
+Categories=Development;IDE;
+MimeType=x-scheme-handler/orca;
+StartupNotify=true
+'''
+
+
+def installed():
+    if not (APP / 'AppRun').is_file() or not (APP / 'orca-ide').is_file():
+        return False
+    # Reconhece também a instalação manual anterior, sem marcador.
+    metadata = APP / 'orca-ide.desktop'
+    return metadata.is_file() and f'X-AppImage-Version={VERSION}\n' in metadata.read_text()
+
+
+def changes():
+    result = []
+    if not installed():
+        result.append(f'instalar Orca {VERSION} em ~/.local/opt/orca (SHA-256 verificado)')
+    source = APP / 'orca-ide.png'
+    if not ICON.is_file() or not source.is_file() or ICON.read_bytes() != source.read_bytes():
+        result.append('instalar o ícone oficial do Orca no menu de aplicativos')
+    if not DESKTOP.is_file() or DESKTOP.read_text() != desktop_text():
+        result.append('configurar o atalho Orca no menu de aplicativos')
+    return result
+
+
+def backup(path):
+    if path.exists():
+        target = path.with_name(path.name + '.bak-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        path.rename(target)
+
+
+def install():
+    if platform.machine() != 'x86_64':
+        raise SystemExit('Esta versão do instalador Orca suporta apenas x86_64.')
+    if not installed():
+        ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.install-', dir=ROOT) as tmp:
+            image = Path(tmp) / 'orca.AppImage'
+            with urlopen(URL, timeout=60) as response, image.open('wb') as output:
+                shutil.copyfileobj(response, output)
+            with image.open('rb') as downloaded:
+                digest = hashlib.file_digest(downloaded, 'sha256').hexdigest()
+            if digest != SHA256:
+                raise SystemExit('SHA-256 do Orca inválido; instalação interrompida.')
+            image.chmod(0o755)
+            subprocess.run([str(image), '--appimage-extract'], cwd=tmp,
+                           check=True, stdout=subprocess.DEVNULL)
+            extracted = Path(tmp) / 'squashfs-root'
+            for name in ('AppRun', 'orca-ide', 'orca-ide.png'):
+                if not (extracted / name).is_file():
+                    raise SystemExit(f'Pacote Orca incompleto: {name}')
+            backup(APP)
+            extracted.rename(APP)
+    ICON.parent.mkdir(parents=True, exist_ok=True)
+    if not ICON.is_file() or ICON.read_bytes() != (APP / 'orca-ide.png').read_bytes():
+        backup(ICON)
+        shutil.copyfile(APP / 'orca-ide.png', ICON)
+    DESKTOP.parent.mkdir(parents=True, exist_ok=True)
+    if not DESKTOP.is_file() or DESKTOP.read_text() != desktop_text():
+        backup(DESKTOP)
+        DESKTOP.write_text(desktop_text())
+    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).mkdir(parents=True, exist_ok=True)
+    for command in (
+        ['update-desktop-database', str(DESKTOP.parent)],
+        ['gtk-update-icon-cache', '-f', '-t', str(DATA / 'icons/hicolor')],
+        ['xdg-mime', 'default', 'orca-ide.desktop', 'x-scheme-handler/orca'],
+    ):
+        if shutil.which(command[0]):
+            subprocess.run(command, check=True)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--plan', action='store_true', help='mostra mudanças sem alterar arquivos ou acessar a rede')
+    args = parser.parse_args()
+    if args.plan:
+        pending = changes()
+        print('\n'.join(pending), end='\n' if pending else '')
+    else:
+        install()

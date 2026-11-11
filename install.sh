@@ -25,12 +25,13 @@ TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$HOME/.cache/assistente-fedora-$TS.log"
 mkdir -p "$HOME/.cache"
 
-STEPS=(check packages flatpak fonts cursor zsh tools kitty gnome energy wallpaper extensions firefox vscode bluetooth auth terminal)
+STEPS=(check packages flatpak orca fonts cursor zsh tools kitty gnome energy wallpaper extensions firefox vscode bluetooth auth terminal)
 declare -A DESC=(
   [energy]="economia automática na bateria via G-Helper: CPU e inatividade da tela; Turbo na tomada"
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
   [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"
+  [orca]="Orca: orquestrador de agentes, com ícone oficial e instalação em ~/.local/opt"
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
   [zsh]="oh-my-zsh, plugins, tema lambda-vitor e .zshrc; nome personalizado no prompt"
@@ -359,6 +360,15 @@ EOF
   return 0
 }
 
+plan_orca() {
+  local changes line
+  changes=$(python3 "$REPO/bin/install-orca" --plan) || { plan_add "verificar instalação do Orca"; return 0; }
+  while IFS= read -r line; do
+    [[ -n $line ]] && plan_add "$line"
+  done <<< "$changes"
+  return 0
+}
+
 plan_fonts() {
   grep -qi 'JetBrainsMono Nerd Font' <<<"$(fc-list : family)" || plan_add "baixar e instalar a JetBrainsMono Nerd Font em ~/.local/share/fonts"
   return 0
@@ -639,6 +649,11 @@ os.makedirs(os.path.dirname(path), exist_ok=True)
 open(path, "w").write("\n".join(out) + "\n")
 EOF
   ok "VLC definido como player padrão"
+}
+
+step_orca() {
+  python3 "$REPO/bin/install-orca" || return $?
+  ok "Orca instalado com ícone oficial no menu"
 }
 
 step_fonts() {

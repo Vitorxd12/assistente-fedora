@@ -69,8 +69,9 @@ Fluxo recomendado numa instalação nova:
 | Etapa | O que faz |
 |---|---|
 | `check` | verifica Fedora, GNOME, usuário e sudo |
-| `packages` | instala kitty, zsh, git, fontes, pt-BR; remove Boxes, Mapas, Clima, Contatos, Agenda, Relógios, LibreOffice, Orca, Ajuda, controle parental, teclados asiáticos… |
+| `packages` | instala kitty, zsh, git, fontes, pt-BR; remove Boxes, Mapas, Clima, Contatos, Agenda, Relógios, LibreOffice, leitor de tela Orca, Ajuda, controle parental, teclados asiáticos… |
 | `flatpak` | libera o Flathub completo; instala VLC, Extension Manager, VS Code; VLC como player padrão |
+| `orca` | instala o [Orca da Stably](https://github.com/stablyai/orca), orquestrador de agentes, com ícone oficial no menu; versão 1.4.256 para x86_64, download verificado por SHA-256 e arquivos em `~/.local/opt/orca`, sem sudo ou FUSE |
 | `fonts` | JetBrainsMono Nerd Font |
 | `cursor` | Bibata Modern Ice (branco) para GNOME, GTK, XWayland e Flatpak — gera a versão SVG (`cursors_scalable/`) que o GNOME 51 exige |
 | `zsh` | oh-my-zsh + autosuggestions + syntax-highlighting, tema `lambda-vitor`, `.zshrc`; zsh como shell padrão |
@@ -85,6 +86,11 @@ Fluxo recomendado numa instalação nova:
 | `bluetooth` | só em placas Realtek rtw88 (ex.: RTL8821CE, Wi-Fi e Bluetooth no mesmo chip): desliga a economia de energia profunda/ASPM do driver e o power save do Wi-Fi, que travam o firmware e fazem o fone Bluetooth (LDAC) cortar. Vale após reiniciar |
 | `auth` | desativa login por digital e smartcard |
 | `terminal` | kitty como terminal padrão; remove o Ptyxis (só dentro do kitty) |
+
+Para instalar só o orquestrador: `./install.sh --only orca`.
+Para visualizar as mudanças: `./install.sh --only orca --dry-run`.
+O leitor de tela Orca removido na etapa `packages` é um aplicativo diferente.
+A etapa preserva backups dos arquivos substituídos e não abre o aplicativo.
 
 ## Atalhos configurados
 
@@ -126,6 +132,7 @@ Fluxo recomendado numa instalação nova:
 
 ```
 install.sh                    script principal (etapas)
+bin/install-orca              instala o orquestrador Orca e seu ícone oficial
 bin/accent-sync               cor de destaque do GNOME → kitty
 bin/kitty-wallpaper           wallpaper do GNOME → fundo borrado do kitty
 bin/gnome-accent-wallpaper    cor de destaque do GNOME → wallpaper Blobs
