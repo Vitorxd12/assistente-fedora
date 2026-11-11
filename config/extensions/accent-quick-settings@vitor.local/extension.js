@@ -1,4 +1,5 @@
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
@@ -78,11 +79,81 @@ class AccentToggle extends QuickSettings.QuickMenuToggle {
     }
 });
 
+const KeepAwakeToggle = GObject.registerClass(
+class KeepAwakeToggle extends QuickSettings.QuickMenuToggle {
+    constructor() {
+        super({
+            title: 'Tela sempre ligada',
+            subtitle: 'Desativado',
+            iconName: 'display-brightness-symbolic',
+            toggleMode: true,
+        });
+        this._cookie = 0;
+        this._busy = false;
+        this.connect('notify::checked', () => this._setInhibited(this.checked));
+    }
+
+    _setInhibited(enabled) {
+        if (this._busy)
+            return;
+        if (enabled) {
+            const session = Gio.DBus.session;
+            this._busy = true;
+            session.call(
+                'org.gnome.SessionManager',
+                '/org/gnome/SessionManager',
+                'org.gnome.SessionManager',
+                'Inhibit',
+                new GLib.Variant('(susu)', ['assistente-fedora', 0, 'Tela sempre ligada', 8]),
+                new GLib.VariantType('(u)'),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                (connection, result) => {
+                    this._busy = false;
+                    try {
+                        this._cookie = connection.call_finish(result).deep_unpack()[0];
+                        if (!this.checked) {
+                            this._uninhibit();
+                            this.subtitle = 'Desativado';
+                        } else {
+                            this.subtitle = 'Ativado';
+                        }
+                    } catch (error) {
+                        this.checked = false;
+                        this.subtitle = 'Não foi possível ativar';
+                        logError(error, 'Falha ao inibir a inatividade da tela');
+                    }
+                });
+        } else {
+            this._uninhibit();
+            this.subtitle = 'Desativado';
+        }
+    }
+
+    _uninhibit() {
+        if (!this._cookie)
+            return;
+        Gio.DBus.session.call(
+            'org.gnome.SessionManager', '/org/gnome/SessionManager',
+            'org.gnome.SessionManager', 'Uninhibit',
+            new GLib.Variant('(u)', [this._cookie]), null,
+            Gio.DBusCallFlags.NONE, -1, null, null);
+        this._cookie = 0;
+    }
+
+    destroy() {
+        this._uninhibit();
+        super.destroy();
+    }
+});
+
 const AccentIndicator = GObject.registerClass(
 class AccentIndicator extends QuickSettings.SystemIndicator {
     constructor() {
         super();
         this.quickSettingsItems.push(new AccentToggle());
+        this.quickSettingsItems.push(new KeepAwakeToggle());
     }
 
     destroy() {

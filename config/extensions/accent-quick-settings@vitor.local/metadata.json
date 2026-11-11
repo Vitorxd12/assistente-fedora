@@ -1,6 +1,6 @@
 {
   "uuid": "accent-quick-settings@vitor.local",
-  "name": "Accent Color Quick Settings",
-  "description": "Troca a cor de destaque e simplifica os botões das Configurações Rápidas.",
+  "name": "Controles das Configurações Rápidas",
+  "description": "Troca a cor de destaque e mantém a tela ligada sob demanda.",
   "shell-version": ["45", "46", "47", "48", "49", "50", "51"]
 }
