@@ -30,7 +30,7 @@ declare -A DESC=(
   [energy]="economia automática na bateria via G-Helper: CPU e inatividade da tela; Turbo na tomada"
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
-  [flatpak]="libera o Flathub completo e instala VLC, Extension Manager e VS Code"
+  [flatpak]="instala VLC Redesign, Extension Manager e VS Code; remove o VLC oficial"
   [orca]="Orca: orquestrador de agentes, com ícone oficial e instalação em ~/.local/opt"
   [fonts]="instala a JetBrainsMono Nerd Font"
   [cursor]="instala o cursor Bibata (branco) em todos os apps"
@@ -88,12 +88,16 @@ PKGS_REMOVE=(
   ibus-anthy ibus-chewing ibus-hangul ibus-libpinyin ibus-libzhuyin
   'libreoffice*'
 )
-FLATPAKS=(org.videolan.VLC com.mattjakeman.ExtensionManager com.visualstudio.code)
+FLATPAKS=(com.mattjakeman.ExtensionManager com.visualstudio.code)
 declare -A FLATPAK_NAME=(
-  [org.videolan.VLC]="VLC"
   [com.mattjakeman.ExtensionManager]="Extension Manager"
   [com.visualstudio.code]="VS Code"
 )
+VLC_OFFICIAL_APP_ID="org.videolan.VLC"
+VLC_REDESIGN_VERSION="0.6.0"
+VLC_REDESIGN_RELEASE="1"
+VLC_REDESIGN_SHA256_X86_64="7f76cdd437ac8285b98f2316b022b23586a4d1f8869e163f8a944b1165abd8e5"
+VLC_REDESIGN_SHA256_AARCH64="0a66d2ee7ec6ddcdcd85e9c1afd0524256830eb8af15dcc052c13bfe036acec7"
 GIT_CONFIG=(
   "core.pager|delta|git mostra diffs com o delta"
   "interactive.diffFilter|delta --color-only|git add -p com cores do delta"
@@ -332,6 +336,52 @@ plan_packages() {
   return 0
 }
 
+vlc_hwdecode_state() {
+  python3 - "$HOME/.config/vlc/vlcrc" <<'EOF'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+values = []
+if path.is_file():
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key.strip() == "avcodec-hw":
+            values.append(value.strip())
+print("none" if values and all(v == "none" for v in values) else (values[-1] if values else "default"))
+EOF
+}
+
+vlc_redesign_rpm_info() {
+  case "$(uname -m)" in
+    x86_64)
+      printf 'vlc-redesign-%s-%s.x86_64.rpm|%s\n' \
+        "$VLC_REDESIGN_VERSION" "$VLC_REDESIGN_RELEASE" "$VLC_REDESIGN_SHA256_X86_64"
+      ;;
+    aarch64)
+      printf 'vlc-redesign-%s-%s.aarch64.rpm|%s\n' \
+        "$VLC_REDESIGN_VERSION" "$VLC_REDESIGN_RELEASE" "$VLC_REDESIGN_SHA256_AARCH64"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+version_at_least() {  # versão instalada, versão desejada
+  local installed="$1" wanted="$2"
+  [[ $(printf '%s\n%s\n' "$wanted" "$installed" | sort -V | tail -n 1) == "$installed" ]]
+}
+
+rpm_package_version() {
+  rpm -q --quiet "$1" || return 1
+  rpm -q --qf '%{VERSION}-%{RELEASE}' "$1"
+}
+
+official_vlc_rpm_packages() {
+  rpm -qa --qf '%{NAME}\n' 'vlc*' 2>/dev/null | grep -Ev '^vlc-redesign($|-)' || true
+}
+
 plan_flatpak() {
   command -v flatpak >/dev/null || { plan_note "flatpak não está instalado"; return 0; }
   if ! grep -qx flathub <<<"$(flatpak remotes --columns=name)"; then
@@ -342,6 +392,23 @@ plan_flatpak() {
   local a missing=()
   for a in "${FLATPAKS[@]}"; do flatpak info "$a" &>/dev/null || missing+=("${FLATPAK_NAME[$a]:-$a}"); done
   (( ${#missing[@]} )) && plan_add "instalar: ${missing[*]}"
+  local rpm_info current target scope
+  if rpm_info=$(vlc_redesign_rpm_info); then
+    target="$VLC_REDESIGN_VERSION-$VLC_REDESIGN_RELEASE"
+    current=$(rpm_package_version vlc-redesign 2>/dev/null || true)
+    if [[ -z $current ]] || ! version_at_least "$current" "$target"; then
+      plan_add "instalar VLC Redesign $target pelo RPM Fedora (SHA-256 verificado)"
+    fi
+    for scope in user system; do
+      flatpak info "--$scope" "$VLC_OFFICIAL_APP_ID" &>/dev/null \
+        && plan_del "remover VLC oficial Flatpak ($scope; dados preservados)"
+    done
+    local old_vlc_rpms=()
+    mapfile -t old_vlc_rpms < <(official_vlc_rpm_packages)
+    (( ${#old_vlc_rpms[@]} )) && plan_del "remover VLC oficial RPM: ${old_vlc_rpms[*]}"
+  else
+    plan_note "VLC Redesign não publica RPM para $(uname -m); sem migração automática"
+  fi
   local n
   n=$(python3 - "$REPO/config/vlc-mimeapps.list" "$HOME/.config/mimeapps.list" <<'EOF'
 import sys, os
@@ -356,7 +423,16 @@ if os.path.exists(sys.argv[2]):
 print(sum(1 for k, v in want.items() if cur.get(k) != v))
 EOF
 )
-  (( n > 0 )) && plan_chg "VLC como player padrão em $n formatos de áudio/vídeo ${c_dim}(~/.config/mimeapps.list)${c_reset}"
+  (( n > 0 )) && plan_chg "VLC Redesign como player padrão em $n formatos de áudio/vídeo ${c_dim}(~/.config/mimeapps.list)${c_reset}"
+  local hwdecode
+  hwdecode=$(vlc_hwdecode_state)
+  if [[ $hwdecode != none ]]; then
+    if [[ $hwdecode == default ]]; then
+      plan_add "VLC Redesign: desativar decodificação por hardware (contorno para tela preta; ~/.config/vlc/vlcrc)"
+    else
+      plan_chg "VLC Redesign: decodificação por hardware ${c_dim}$hwdecode${c_reset} → software ${c_dim}(~/.config/vlc/vlcrc)${c_reset}"
+    fi
+  fi
   return 0
 }
 
@@ -606,8 +682,85 @@ step_packages() {
   sudo dnf install -y "${PKGS_INSTALL[@]}" 2>&1 | tee -a "$LOG" | tail -3
 }
 
+install_vlc_redesign_rpm() {
+  local rpm_info rpm_file rpm_hash url cache_dir package target current rc
+  rpm_info=$(vlc_redesign_rpm_info) || { err "VLC Redesign não publica RPM para $(uname -m)"; return 1; }
+  IFS='|' read -r rpm_file rpm_hash <<<"$rpm_info"
+  target="$VLC_REDESIGN_VERSION-$VLC_REDESIGN_RELEASE"
+  current=$(rpm_package_version vlc-redesign 2>/dev/null || true)
+  if [[ -n $current ]] && version_at_least "$current" "$target"; then
+    ok "VLC Redesign $current já instalado"
+    return 0
+  fi
+
+  cache_dir="$HOME/.cache/assistente-fedora/vlc-redesign"
+  mkdir -p "$cache_dir" || { err "não foi possível criar o cache do VLC Redesign"; return 1; }
+  package="$cache_dir/$rpm_file"
+  url="https://github.com/KuchiSofts/vlc-redesign/releases/download/v$VLC_REDESIGN_VERSION/$rpm_file"
+  if ! printf '%s  %s\n' "$rpm_hash" "$package" | sha256sum --check --status; then
+    if ! curl -fL --retry 5 --retry-all-errors --retry-delay 2 --continue-at - \
+      --connect-timeout 20 --max-time 600 "$url" -o "$package"; then
+      err "download do RPM do VLC Redesign falhou; arquivo parcial mantido em $(short "$package") para retomar"
+      return 1
+    fi
+  fi
+  if ! printf '%s  %s\n' "$rpm_hash" "$package" | sha256sum --check --status; then
+    rm -f "$package"
+    err "SHA-256 do RPM do VLC Redesign não confere"
+    return 1
+  fi
+  if sudo dnf install -y "$package" 2>&1 | tee -a "$LOG"; then
+    rc=0
+    ok "VLC Redesign $target instalado"
+    rm -f "$package"
+  else
+    rc=$?
+    err "instalação do VLC Redesign falhou; saída completa em $(short "$LOG")"
+  fi
+  return "$rc"
+}
+
+remove_official_vlc() {
+  local scope rc
+  flatpak kill "$VLC_OFFICIAL_APP_ID" >/dev/null 2>&1 || true
+  for scope in system user; do
+    if flatpak info "--$scope" "$VLC_OFFICIAL_APP_ID" &>/dev/null; then
+      if [[ $scope == system ]]; then
+        if sudo flatpak uninstall --system --noninteractive -y "$VLC_OFFICIAL_APP_ID" 2>&1 | tee -a "$LOG"; then
+          ok "VLC oficial Flatpak ($scope) removido; dados preservados"
+        else
+          rc=$?
+          err "não foi possível remover VLC oficial Flatpak ($scope)"
+          return "$rc"
+        fi
+      else
+        if flatpak uninstall --user --noninteractive -y "$VLC_OFFICIAL_APP_ID" 2>&1 | tee -a "$LOG"; then
+          ok "VLC oficial Flatpak ($scope) removido; dados preservados"
+        else
+          rc=$?
+          err "não foi possível remover VLC oficial Flatpak ($scope)"
+          return "$rc"
+        fi
+      fi
+    fi
+  done
+
+  local -a old_vlc_rpms=()
+  mapfile -t old_vlc_rpms < <(official_vlc_rpm_packages)
+  if (( ${#old_vlc_rpms[@]} )); then
+    if sudo dnf remove -y "${old_vlc_rpms[@]}" 2>&1 | tee -a "$LOG"; then
+      ok "VLC oficial RPM removido: ${old_vlc_rpms[*]}"
+    else
+      rc=$?
+      err "não foi possível remover VLC oficial RPM"
+      return "$rc"
+    fi
+  fi
+}
+
 step_flatpak() {
   command -v flatpak >/dev/null || { err "flatpak não instalado"; return 1; }
+  vlc_redesign_rpm_info >/dev/null || { err "VLC Redesign não publica RPM para $(uname -m)"; return 1; }
   local remotes
   remotes=$(flatpak remotes --system --columns=name) || return $?
   # remote-add pode buscar o .flatpakrepo mesmo com --if-not-exists.
@@ -626,7 +779,9 @@ step_flatpak() {
     warn "se houve falha de rede/DNS, restabeleça a conexão e rode: ./install.sh --only flatpak"
     return "$rc"
   fi
-  # VLC como player padrão de áudio e vídeo (mescla com o mimeapps.list existente)
+  install_vlc_redesign_rpm || return $?
+  remove_official_vlc || return $?
+  # VLC Redesign como player padrão de áudio e vídeo (mescla mimeapps.list existente)
   python3 - "$REPO/config/vlc-mimeapps.list" "$HOME/.config/mimeapps.list" <<'EOF'
 import sys, os
 new = dict(l.strip().split("=", 1) for l in open(sys.argv[1]) if "=" in l)
@@ -648,7 +803,36 @@ if not seen_def:
 os.makedirs(os.path.dirname(path), exist_ok=True)
 open(path, "w").write("\n".join(out) + "\n")
 EOF
-  ok "VLC definido como player padrão"
+  ok "VLC Redesign definido como player padrão"
+  local vlc_config="$HOME/.config/vlc/vlcrc"
+  if [[ $(vlc_hwdecode_state) == none ]]; then
+    ok "decodificação de vídeo por software já configurada no VLC Redesign"
+  else
+    backup "$vlc_config"
+    python3 - "$vlc_config" <<'EOF' || return $?
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+path.parent.mkdir(parents=True, exist_ok=True)
+lines = path.read_text().splitlines() if path.exists() else []
+out, found = [], False
+for raw in lines:
+    line = raw.strip()
+    if line and not line.startswith("#") and "=" in line:
+        key, _ = line.split("=", 1)
+        if key.strip() == "avcodec-hw":
+            out.append("avcodec-hw=none")
+            found = True
+            continue
+    out.append(raw)
+if not found:
+    if out and out[-1].strip():
+        out.append("")
+    out.extend(("# Decodificação por software evita tela preta em caminhos VA-API incompatíveis.", "avcodec-hw=none"))
+path.write_text("\n".join(out) + "\n")
+EOF
+    ok "decodificação de vídeo por hardware desativada no VLC Redesign (modo software)"
+  fi
 }
 
 step_orca() {

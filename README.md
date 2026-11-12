@@ -70,7 +70,7 @@ Fluxo recomendado numa instalação nova:
 |---|---|
 | `check` | verifica Fedora, GNOME, usuário e sudo |
 | `packages` | instala kitty, zsh, git, fontes, pt-BR; remove Boxes, Mapas, Clima, Contatos, Agenda, Relógios, LibreOffice, leitor de tela Orca, Ajuda, controle parental, teclados asiáticos… |
-| `flatpak` | libera o Flathub completo; instala VLC, Extension Manager, VS Code; VLC como player padrão |
+| `flatpak` | libera o Flathub completo; instala VLC Redesign, Extension Manager e VS Code; remove o VLC oficial e define o Redesign como padrão |
 | `orca` | instala o [Orca da Stably](https://github.com/stablyai/orca), orquestrador de agentes, com ícone oficial no menu; versão 1.4.256 para x86_64, download verificado por SHA-256 e arquivos em `~/.local/opt/orca`, sem sudo ou FUSE |
 | `fonts` | JetBrainsMono Nerd Font |
 | `cursor` | Bibata Modern Ice (branco) para GNOME, GTK, XWayland e Flatpak — gera a versão SVG (`cursors_scalable/`) que o GNOME 51 exige |
@@ -141,7 +141,8 @@ systemd/accent-sync.service   mantém a cor sincronizada
 config/zsh/                   .zshrc e tema lambda-vitor
 config/kitty/kitty.conf
 config/firefox/              user.js e userChrome.css
-config/vlc-mimeapps.list      formatos abertos pelo VLC
+config/vlc-mimeapps.list      formatos abertos pelo VLC Redesign
+docs/vlc.md                   diagnóstico e configuração do VLC
 config/vscode/                settings.json e lista de extensões
 config/system/                arquivos de /etc (driver rtw88 e power save do Wi-Fi)
 config/extensions/            configurações das extensões + extensão local
