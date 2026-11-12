@@ -27,7 +27,7 @@ mkdir -p "$HOME/.cache"
 
 STEPS=(check packages flatpak orca fonts cursor zsh tools kitty gnome energy wallpaper extensions firefox vscode bluetooth auth terminal)
 declare -A DESC=(
-  [energy]="economia automática na bateria via G-Helper: CPU e inatividade da tela; Turbo na tomada"
+  [energy]="remove automações de energia do G-Helper e restaura preferências anteriores"
   [check]="verifica Fedora, GNOME, usuário e sudo"
   [packages]="instala pacotes base e remove apps que não uso"
   [flatpak]="instala VLC Redesign, Extension Manager e VS Code; remove o VLC oficial"
@@ -553,14 +553,13 @@ plan_gnome() {
 }
 
 plan_energy() {
-  if [[ ! -f $HOME/.config/ghelper/config.json ]]; then
-    plan_note "G-Helper não configurado: etapa energy será pulada (não instala aplicativos)"
-    return 0
-  fi
-  plan_file "$REPO/bin/battery-saver" "$HOME/.local/bin/battery-saver"
-  if ! python3 "$REPO/bin/battery-saver" --check 2>/dev/null; then
-    plan_chg "configurar bateria/AC pelos hooks nativos do G-Helper (feche o aplicativo antes)"
-  fi
+  local state
+  state=$(python3 "$REPO/bin/battery-saver" --restore-check 2>/dev/null) || state=unknown
+  case $state in
+    yes) plan_chg "remover hooks de energia do G-Helper e restaurar preferências/valores salvos" ;;
+    no)  plan_note "nenhuma automação de energia do assistente está ativa" ;;
+    *)   plan_note "não foi possível verificar hooks e estado anterior do G-Helper" ;;
+  esac
   return 0
 }
 
@@ -669,6 +668,7 @@ step_check() {
   [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} ]] || warn "sem sessão gráfica/D-Bus: etapas do GNOME podem falhar"
   ok "rodando no terminal: $(parent_terminal)"
   if (( DRY_RUN )); then ok "modo --dry-run: nada será alterado"; return 0; fi
+  if (( ! NEED_SUDO )); then ok "as etapas selecionadas não precisam de sudo"; return 0; fi
   sudo -v || { err "sudo necessário"; return 1; }
   ok "sudo ok"
 }
@@ -975,17 +975,15 @@ step_gnome() {
 }
 
 step_energy() {
-  [[ -f $HOME/.config/ghelper/config.json ]] || { warn "G-Helper não configurado; energy pulada"; return 0; }
+  local state
+  state=$(python3 "$REPO/bin/battery-saver" --restore-check) || return $?
+  [[ $state == yes ]] || { ok "nenhuma automação de energia do assistente está ativa"; return 0; }
   if pgrep -u "$UID" -x ghelper >/dev/null; then
-    err "feche somente o G-Helper e execute ./install.sh --only energy novamente"
+    err "feche o G-Helper e execute ./install.sh --only energy novamente"
     return 1
   fi
-  mkdir -p "$HOME/.local/bin"
-  put "$REPO/bin/battery-saver" "$HOME/.local/bin/battery-saver"
-  chmod 755 "$HOME/.local/bin/battery-saver"
-  "$HOME/.local/bin/battery-saver" --configure || return 1
-  "$HOME/.local/bin/battery-saver" --apply || return 1
-  ok "economia configurada; abra o G-Helper para acompanhar bateria/tomada"
+  python3 "$REPO/bin/battery-saver" --restore || return $?
+  ok "hooks de energia removidos; preferências e valores salvos restaurados"
 }
 
 step_wallpaper() {
@@ -1213,6 +1211,14 @@ for s in "${STEPS[@]}"; do
   selected+=("$s")
 done
 
+# Só valida e mantém o sudo quando uma etapa selecionada realmente o usa.
+NEED_SUDO=0
+for s in "${selected[@]}"; do
+  case $s in
+    packages|flatpak|zsh|tools|bluetooth|auth|terminal) NEED_SUDO=1 ;;
+  esac
+done
+
 say "${c_bold}${c_acc}λ assistente-fedora${c_reset}  ${c_dim}log: $(short "$LOG")${c_reset}"
 say "${c_dim}legenda:  ${c_grn}+${c_reset}${c_dim} novo   ${c_yel}~${c_reset}${c_dim} alterado (atual → novo)   ${c_red}-${c_reset}${c_dim} removido   · aviso${c_reset}"
 (( DRY_RUN )) && say "${c_yel}modo --dry-run: só mostra o que mudaria; nada será alterado${c_reset}"
@@ -1224,7 +1230,7 @@ info "${c_bold}check${c_reset} — ${DESC[check]}"
 say ""
 
 # mantém o sudo vivo durante a execução
-if (( ! DRY_RUN )); then
+if (( ! DRY_RUN && NEED_SUDO )); then
   ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 $$ 2>/dev/null || exit; done ) &
   SUDO_KEEPALIVE=$!
   trap 'kill $SUDO_KEEPALIVE 2>/dev/null' EXIT

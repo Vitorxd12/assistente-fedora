@@ -78,7 +78,7 @@ Fluxo recomendado numa instalação nova:
 | `tools` | ferramentas modernas: eza, dust, delta, btop, tokei, hyperfine; git usando o delta |
 | `kitty` | `kitty.conf`, fundo = wallpaper do GNOME borrado, cor de destaque do sistema no kitty |
 | `gnome` | modo escuro, cor roxa padrão, relógio em 24 horas, botões min/max, teclado ABNT2, sem arquivos recentes, dock vazia, atalhos, favoritos do Nautilus (repos, Documents, Downloads); preserva o perfil de energia |
-| `energy` | com G-Helper já configurado: Silencioso na bateria, turbo temporariamente desligado, tela inativa em até 5 minutos, teclado em nível baixo e atualização automática; na tomada usa Turbo, CPU Boost, teclado no máximo e restaura a inatividade. Não altera GPU, rede, Bluetooth, fans ou TuneD |
+| `energy` | remove os hooks de bateria/tomada instalados anteriormente pelo assistente e restaura preferências salvas; não cria automações novas |
 | `wallpaper` | papel de parede Blobs claro/escuro acompanha a cor de destaque; o vermelho mantém o SVG original e `--uninstall` restaura os wallpapers anteriores |
 | `extensions` | Tiling Shell, Clipboard Indicator, Blur my Shell (Liquid Glass na barra, visão geral e menus, com escurecimento leve; some quando uma janela encosta na barra), Compiz Windows Effect, Astra Monitor (CPU, GPU, memória e sensores na barra, modo compacto), gestos do touchpad, esconde Mostrar aplicativos, dá botões e arrasto ao kitty sem barra de título e adiciona às Configurações Rápidas o seletor de cor de destaque e o botão **Tela sempre ligada** |
 | `firefox` | página inicial padrão (em vez da do Fedora), reabrir abas da sessão anterior abas embaixo da barra de endereço e botões da janela na barra de cima (`userChrome.css`) |
